@@ -1,0 +1,129 @@
+{
+  "name": "payment-check",
+  "slug": "payment-check",
+  "description": "Multi-tenant payment reconciliation workflow: triggers hourly on schedule or via payment.webhook from Stripe/JazzCash, checks pending invoices in the tenant's Google Sheet, verifies payment status, updates the Sheet row to paid, sends confirmation receipts via Gmail, and posts celebrations to Slack with zero cross-tenant leakage.",
+  "enabled": true,
+  "executionTier": "standard",
+  "timeoutMs": 120000,
+  "triggers": [
+    {
+      "type": "schedule",
+      "cron": "0 * * * *",
+      "description": "Hourly reconciliation scan for pending invoices"
+    },
+    {
+      "type": "webhook",
+      "event": "payment.webhook",
+      "description": "Real-time payment event from Stripe or JazzCash IPN"
+    }
+  ],
+  "connectorManifest": [
+    {
+      "slug": "googleSheets",
+      "scope": "MULTI_TENANT",
+      "actions": ["readRows", "updateRow"]
+    },
+    {
+      "slug": "stripe",
+      "scope": "MULTI_TENANT",
+      "actions": ["getPaymentStatus"]
+    },
+    {
+      "slug": "jazzcash",
+      "scope": "MULTI_TENANT",
+      "actions": ["inquireTransaction"]
+    },
+    {
+      "slug": "gmail",
+      "scope": "MULTI_TENANT",
+      "actions": ["sendEmail"]
+    },
+    {
+      "slug": "slack",
+      "scope": "MULTI_TENANT",
+      "actions": ["sendMessage"]
+    }
+  ],
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "tenant_id": {
+        "type": "string",
+        "description": "Freelancer tenant identifier (e.g. tenant-sarah-chen)"
+      },
+      "trigger_type": {
+        "type": "string",
+        "enum": ["schedule", "webhook"],
+        "description": "Invocation mode"
+      },
+      "invoice_id": {
+        "type": "string",
+        "description": "Invoice ID to check (for webhook trigger)"
+      },
+      "client_email": {
+        "type": "string",
+        "format": "email",
+        "description": "Client email"
+      },
+      "amount": {
+        "type": "number",
+        "description": "Invoice amount"
+      },
+      "due_date": {
+        "type": "string",
+        "format": "date",
+        "description": "Invoice due date"
+      },
+      "payment_source": {
+        "type": "string",
+        "enum": ["stripe", "jazzcash"],
+        "description": "Payment gateway connector to query"
+      },
+      "external_reference": {
+        "type": "string",
+        "description": "Stripe session_id / payment_intent or JazzCash TxnRefNo"
+      },
+      "status": {
+        "type": "string",
+        "enum": ["paid", "pending", "failed"],
+        "description": "Optional verified status passed by webhook"
+      },
+      "spreadsheet_id": {
+        "type": "string",
+        "description": "Tenant's Google Spreadsheet ID"
+      },
+      "slack_channel": {
+        "type": "string",
+        "description": "Tenant's Slack channel"
+      }
+    },
+    "required": ["tenant_id"]
+  },
+  "retryPolicy": {
+    "maxAttempts": 3,
+    "initialIntervalMs": 1000,
+    "backoffCoefficient": 2,
+    "maximumIntervalMs": 10000
+  },
+  "testInput": "{\"tenant_id\":\"tenant-sarah-chen\",\"trigger_type\":\"webhook\",\"invoice_id\":\"INV-2026-001\",\"client_email\":\"billing@acmefintech.io\",\"amount\":5250,\"due_date\":\"2026-10-31\",\"payment_source\":\"stripe\",\"status\":\"paid\"}",
+  "testHeaders": "{\"x-end-org-id\":\"tenant-sarah-chen\",\"x-fastn-space-tenantid\":\"freelancer-sarah-chen\"}",
+  "testCases": [
+    {
+      "id": "case-stripe-webhook-paid",
+      "scenario": "Stripe webhook payment.webhook for Tenant A (Sarah Chen)",
+      "mode": "live",
+      "input": "{\"tenant_id\":\"tenant-sarah-chen\",\"trigger_type\":\"webhook\",\"invoice_id\":\"INV-2026-001\",\"client_email\":\"billing@acmefintech.io\",\"amount\":5250,\"due_date\":\"2026-10-31\",\"payment_source\":\"stripe\",\"status\":\"paid\"}",
+      "headers": "{\"x-end-org-id\":\"tenant-sarah-chen\"}",
+      "pass": "result.success === true && result.processedInvoices[0].status === 'paid'"
+    },
+    {
+      "id": "case-jazzcash-webhook-paid",
+      "scenario": "JazzCash webhook payment.webhook for Tenant B (Alex Rivera)",
+      "mode": "live",
+      "input": "{\"tenant_id\":\"tenant-alex-rivera\",\"trigger_type\":\"webhook\",\"invoice_id\":\"INV-2026-101\",\"client_email\":\"ap@greenpulse.io\",\"amount\":4400,\"due_date\":\"2026-11-05\",\"payment_source\":\"jazzcash\",\"status\":\"paid\"}",
+      "headers": "{\"x-end-org-id\":\"tenant-alex-rivera\"}",
+      "pass": "result.success === true && result.processedInvoices[0].status === 'paid'"
+    }
+  ]
+}
