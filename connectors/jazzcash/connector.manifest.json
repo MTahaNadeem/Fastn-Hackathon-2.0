@@ -1,0 +1,157 @@
+{
+  "name": "JazzCash",
+  "slug": "jazzcash",
+  "version": "1.1.0",
+  "description": "Fastn Custom Connector for JazzCash payment gateway (sandbox and live). Enables mobile account checkouts, debit/credit cards, OTC vouchers, and real-time status inquiry.",
+  "category": "payments",
+  "icon": "📱",
+  "protocol": "REST",
+  "author": "InvoiceFlow",
+  "scope": "MULTI_TENANT",
+  "authentication": {
+    "type": "apiKey",
+    "description": "Merchant credentials issued by JazzCash Merchant Portal",
+    "fields": [
+      {
+        "key": "merchantId",
+        "label": "Merchant ID",
+        "type": "string",
+        "placeholder": "MC123456",
+        "required": true,
+        "description": "Your unique Merchant Identification assigned by JazzCash"
+      },
+      {
+        "key": "password",
+        "label": "API Password",
+        "type": "password",
+        "placeholder": "••••••••",
+        "required": true,
+        "description": "Merchant password generated in the merchant sandbox portal"
+      },
+      {
+        "key": "integritySalt",
+        "label": "Integrity Salt / HashKey",
+        "type": "password",
+        "placeholder": "••••••••",
+        "required": true,
+        "description": "Secret salt used for calculating cryptographic SHA-256 HMAC request hashes"
+      },
+      {
+        "key": "environment",
+        "label": "Gateway Environment",
+        "type": "select",
+        "options": ["sandbox", "production"],
+        "default": "sandbox",
+        "required": true
+      }
+    ]
+  },
+  "endpoints": {
+    "sandbox": {
+      "apiBase": "https://sandbox.jazzcash.com.pk/Application",
+      "checkoutUrl": "https://sandbox.jazzcash.com.pk/CustomerPortal/transactionmanagement/merchantform/"
+    },
+    "production": {
+      "apiBase": "https://payments.jazzcash.com.pk/Application",
+      "checkoutUrl": "https://payments.jazzcash.com.pk/CustomerPortal/transactionmanagement/merchantform/"
+    }
+  },
+  "actions": [
+    {
+      "name": "create_payment_link",
+      "summary": "Create Hosted Checkout Payment Link",
+      "description": "Generates a signed payment link with automatic SHA-256 HMAC hash generation",
+      "method": "POST",
+      "endpoint": "/API/REST/CreatePaymentLink",
+      "inputSchema": {
+        "type": "object",
+        "required": ["amount", "bill_reference"],
+        "properties": {
+          "amount": { "type": "number", "description": "Amount in PKR" },
+          "bill_reference": { "type": "string", "description": "Invoice reference ID" },
+          "description": { "type": "string", "description": "Payment description" },
+          "client_email": { "type": "string", "description": "Customer email" },
+          "client_mobile": { "type": "string", "description": "Customer mobile (optional)" },
+          "return_url": { "type": "string", "description": "Callback / IPN return URL" },
+          "expiry_hours": { "type": "number", "default": 24 }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "payment_url": { "type": "string" },
+          "txn_ref_no": { "type": "string" },
+          "bill_reference": { "type": "string" },
+          "amount": { "type": "number" },
+          "currency": { "type": "string" },
+          "status": { "type": "string" },
+          "expires_at": { "type": "string" },
+          "secure_hash": { "type": "string" }
+        }
+      }
+    },
+    {
+      "name": "check_payment_status",
+      "summary": "Inquire Payment Status",
+      "description": "Queries JazzCash REST API to verify whether an invoice transaction has been completed and debited",
+      "method": "POST",
+      "endpoint": "/API/REST/QueryTransaction",
+      "inputSchema": {
+        "type": "object",
+        "required": ["txn_ref_no"],
+        "properties": {
+          "txn_ref_no": { "type": "string", "description": "JazzCash Transaction Reference" },
+          "bill_reference": { "type": "string", "description": "Invoice reference ID" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "txn_ref_no": { "type": "string" },
+          "bill_reference": { "type": "string" },
+          "status": { "type": "string", "enum": ["paid", "pending", "failed"] },
+          "response_code": { "type": "string" },
+          "payment_response_code": { "type": "string" },
+          "response_message": { "type": "string" },
+          "amount": { "type": "number" },
+          "currency": { "type": "string" },
+          "paid_at": { "type": "string" },
+          "retrieval_ref_no": { "type": "string" }
+        }
+      }
+    },
+    {
+      "name": "get_transaction",
+      "summary": "Get Transaction Audit Details",
+      "description": "Retrieves settlement information, fees, masked mobile account, and bank RRN for audit logs",
+      "method": "POST",
+      "endpoint": "/API/REST/GetTransaction",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "txn_ref_no": { "type": "string" },
+          "retrieval_ref_no": { "type": "string" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "txn_ref_no": { "type": "string" },
+          "retrieval_ref_no": { "type": "string" },
+          "bill_reference": { "type": "string" },
+          "amount": { "type": "number" },
+          "fee": { "type": "number" },
+          "net_amount": { "type": "number" },
+          "currency": { "type": "string" },
+          "status": { "type": "string" },
+          "customer_mobile": { "type": "string" },
+          "settlement_date": { "type": "string" }
+        }
+      }
+    }
+  ],
+  "openApiSpec": "openapi.json"
+}

@@ -1,0 +1,246 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "JazzCash Sandbox Payment Gateway",
+    "description": "Fastn Custom Connector for JazzCash Sandbox API. Supports hosted checkout links, real-time payment status inquiries, and transaction reconciliations.",
+    "version": "1.1.0",
+    "contact": {
+      "name": "InvoiceFlow Integration Team",
+      "email": "support@invoiceflow.io"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://sandbox.jazzcash.com.pk/Application",
+      "description": "JazzCash Merchant Sandbox Gateway"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "JazzCashAuth": {
+        "type": "apiKey",
+        "description": "Merchant ID, Password, and SHA-256 Integrity Salt provided by JazzCash Sandbox portal",
+        "name": "Authorization",
+        "in": "header"
+      }
+    },
+    "schemas": {
+      "CreatePaymentLinkRequest": {
+        "type": "object",
+        "required": ["amount", "bill_reference"],
+        "properties": {
+          "amount": {
+            "type": "number",
+            "description": "Payment amount in PKR (e.g. 5000.00)",
+            "example": 5000
+          },
+          "bill_reference": {
+            "type": "string",
+            "description": "Merchant invoice or bill reference number",
+            "example": "INV-2026-001"
+          },
+          "description": {
+            "type": "string",
+            "description": "Brief description of the purchase/service",
+            "example": "Website Design & Development Milestone 1"
+          },
+          "client_email": {
+            "type": "string",
+            "format": "email",
+            "description": "Customer email address for invoice delivery",
+            "example": "client@acmecorp.com"
+          },
+          "client_mobile": {
+            "type": "string",
+            "description": "Customer mobile account number for direct debit (optional)",
+            "example": "03001234567"
+          },
+          "return_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to redirect customer after payment completion",
+            "example": "https://invoiceflow.io/api/webhooks/payment"
+          },
+          "expiry_hours": {
+            "type": "integer",
+            "description": "Number of hours until payment link expires",
+            "default": 24,
+            "example": 24
+          }
+        }
+      },
+      "CreatePaymentLinkResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "payment_url": { "type": "string", "format": "uri" },
+          "txn_ref_no": { "type": "string" },
+          "bill_reference": { "type": "string" },
+          "amount": { "type": "number" },
+          "currency": { "type": "string", "example": "PKR" },
+          "status": { "type": "string", "example": "pending" },
+          "expires_at": { "type": "string", "format": "date-time" },
+          "secure_hash": { "type": "string" }
+        }
+      },
+      "CheckPaymentStatusRequest": {
+        "type": "object",
+        "required": ["txn_ref_no"],
+        "properties": {
+          "txn_ref_no": {
+            "type": "string",
+            "description": "Unique JazzCash transaction reference number",
+            "example": "T20261018235001"
+          },
+          "bill_reference": {
+            "type": "string",
+            "description": "Merchant invoice ID",
+            "example": "INV-2026-001"
+          }
+        }
+      },
+      "CheckPaymentStatusResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "txn_ref_no": { "type": "string" },
+          "bill_reference": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["paid", "pending", "failed"],
+            "example": "paid"
+          },
+          "response_code": { "type": "string", "example": "000" },
+          "payment_response_code": { "type": "string", "example": "121" },
+          "response_message": { "type": "string" },
+          "amount": { "type": "number" },
+          "currency": { "type": "string", "example": "PKR" },
+          "paid_at": { "type": "string", "format": "date-time" },
+          "retrieval_ref_no": { "type": "string" }
+        }
+      },
+      "GetTransactionRequest": {
+        "type": "object",
+        "properties": {
+          "txn_ref_no": {
+            "type": "string",
+            "description": "JazzCash Transaction Reference Number",
+            "example": "T20261018235001"
+          },
+          "retrieval_ref_no": {
+            "type": "string",
+            "description": "Bank Retrieval Reference Number",
+            "example": "RRN89347102"
+          }
+        }
+      },
+      "GetTransactionResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "txn_ref_no": { "type": "string" },
+          "retrieval_ref_no": { "type": "string" },
+          "bill_reference": { "type": "string" },
+          "amount": { "type": "number" },
+          "fee": { "type": "number" },
+          "net_amount": { "type": "number" },
+          "currency": { "type": "string", "example": "PKR" },
+          "status": { "type": "string", "example": "paid" },
+          "channel": { "type": "string", "example": "MOBILE_WALLET" },
+          "customer_mobile": { "type": "string", "example": "0300****567" },
+          "settlement_date": { "type": "string", "format": "date-time" },
+          "raw_response": { "type": "object" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/API/REST/CreatePaymentLink": {
+      "post": {
+        "operationId": "create_payment_link",
+        "summary": "Create a hosted checkout payment link",
+        "description": "Generates a signed, tamper-proof hosted payment URL for an invoice with automatic SHA-256 HMAC hash signature.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePaymentLinkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payment link created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatePaymentLinkResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/API/REST/QueryTransaction": {
+      "post": {
+        "operationId": "check_payment_status",
+        "summary": "Inquire transaction payment status",
+        "description": "Queries the JazzCash sandbox status inquiry API using pp_TxnRefNo to check whether funds have been settled.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckPaymentStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckPaymentStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/API/REST/GetTransaction": {
+      "post": {
+        "operationId": "get_transaction",
+        "summary": "Get full transaction audit record",
+        "description": "Fetches detailed settlement data, customer masked mobile, processing fees, and channel information for reconciliation.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetTransactionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transaction details retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetTransactionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

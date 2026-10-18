@@ -112,7 +112,7 @@ export const CONNECTOR_CATALOG: FastnConnectorMetadata[] = [
       { key: "password", label: "API Password", type: "password", placeholder: "••••••••", required: true },
       { key: "integritySalt", label: "Integrity Salt", type: "password", placeholder: "••••••••", required: true },
     ],
-    supportedActions: ["create_checkout", "inquiry", "verify_ipn"],
+    supportedActions: ["create_payment_link", "check_payment_status", "get_transaction"],
   },
   {
     id: "quickbooks",
