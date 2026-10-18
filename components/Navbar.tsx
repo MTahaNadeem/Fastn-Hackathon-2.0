@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   FilePlus,
   Link2,
+  Settings,
   Menu,
   X,
   Sparkles,
@@ -22,6 +23,7 @@ export default function Navbar() {
     { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { label: "Create Invoice", href: "/invoices/create", icon: FilePlus },
     { label: "Connect Accounts", href: "/connect-accounts", icon: Link2 },
+    { label: "Settings", href: "/settings", icon: Settings },
   ];
 
   return (

@@ -10,6 +10,45 @@
  * siloed per freelancer.
  */
 
+export interface EmailTemplateConfig {
+  subject: string;
+  body: string;
+}
+
+export interface ReminderScheduleConfig {
+  daysBeforeDue: number[]; // e.g. [7, 3, 0]
+  enableDayOfReminder: boolean;
+}
+
+export interface TenantSettings {
+  autoSyncAccounting?: boolean;
+  autoNotifySlack?: boolean;
+  defaultPaymentTermsDays?: number;
+  emailTemplate: EmailTemplateConfig;
+  reminderSchedule: ReminderScheduleConfig;
+}
+
+export const DEFAULT_EMAIL_TEMPLATE: EmailTemplateConfig = {
+  subject: "Invoice {invoice_id} from {freelancer_name}",
+  body: `Hi there,
+
+Please find attached invoice {invoice_id} for {amount} {currency} from {freelancer_name} ({business_name}).
+
+Due Date: {due_date}
+Amount Due: {amount} {currency}
+
+Thank you for your business! Please reach out if you have any questions.
+
+Best regards,
+{freelancer_name}
+{business_name}`,
+};
+
+export const DEFAULT_REMINDER_SCHEDULE: ReminderScheduleConfig = {
+  daysBeforeDue: [3, 0],
+  enableDayOfReminder: true,
+};
+
 export interface Tenant {
   id: string;
   name: string;
@@ -19,11 +58,7 @@ export interface Tenant {
   currency: string;
   createdAt: string;
   connectedConnectors: string[];
-  settings?: {
-    autoSyncAccounting?: boolean;
-    autoNotifySlack?: boolean;
-    defaultPaymentTermsDays?: number;
-  };
+  settings?: TenantSettings;
 }
 
 export const DEFAULT_TENANTS: Tenant[] = [
@@ -40,6 +75,25 @@ export const DEFAULT_TENANTS: Tenant[] = [
       autoSyncAccounting: true,
       autoNotifySlack: true,
       defaultPaymentTermsDays: 14,
+      emailTemplate: {
+        subject: "Invoice {invoice_id} from Chen Design Studio",
+        body: `Dear Client,
+
+Please find your design invoice {invoice_id} for {amount} {currency} from Sarah Chen (Chen Design Studio).
+
+Due Date: {due_date}
+Amount: {amount} {currency}
+
+We appreciate your partnership!
+
+Best regards,
+Sarah Chen
+Chen Design Studio`,
+      },
+      reminderSchedule: {
+        daysBeforeDue: [3, 0],
+        enableDayOfReminder: true,
+      },
     },
   },
   {
@@ -55,6 +109,23 @@ export const DEFAULT_TENANTS: Tenant[] = [
       autoSyncAccounting: true,
       autoNotifySlack: false,
       defaultPaymentTermsDays: 30,
+      emailTemplate: {
+        subject: "Invoice {invoice_id} from Rivera Web Solutions",
+        body: `Hello,
+
+Your invoice {invoice_id} for {amount} {currency} is now ready for review.
+
+Amount Due: {amount} {currency}
+Due Date: {due_date}
+
+Thank you for choosing Rivera Web Solutions!
+
+Alex Rivera`,
+      },
+      reminderSchedule: {
+        daysBeforeDue: [7, 3, 0],
+        enableDayOfReminder: true,
+      },
     },
   },
   {
@@ -70,12 +141,29 @@ export const DEFAULT_TENANTS: Tenant[] = [
       autoSyncAccounting: false,
       autoNotifySlack: false,
       defaultPaymentTermsDays: 15,
+      emailTemplate: DEFAULT_EMAIL_TEMPLATE,
+      reminderSchedule: DEFAULT_REMINDER_SCHEDULE,
     },
   },
 ];
 
 const TENANTS_STORAGE_KEY = "invoiceflow_tenants";
 const ACTIVE_TENANT_ID_KEY = "invoiceflow_active_tenant_id";
+
+let memoryTenants: Tenant[] = JSON.parse(JSON.stringify(DEFAULT_TENANTS));
+let memoryActiveTenantId: string = memoryTenants[0].id;
+
+function hasLocalStorage(): boolean {
+  try {
+    return (
+      typeof window !== "undefined" &&
+      typeof localStorage !== "undefined" &&
+      typeof localStorage.getItem === "function"
+    );
+  } catch (_) {
+    return false;
+  }
+}
 
 /**
  * Generate a slugified Fastn connection namespace for a tenant
@@ -91,23 +179,22 @@ export function generateFastnNamespace(input: string): string {
 }
 
 /**
- * Get all available tenants (from localStorage if in browser, else defaults)
+ * Get all available tenants (from localStorage if in browser, else in-memory defaults)
  */
 export function getTenants(): Tenant[] {
-  if (typeof window === "undefined") {
-    return DEFAULT_TENANTS;
+  if (!hasLocalStorage()) {
+    return memoryTenants;
   }
 
   try {
     const raw = localStorage.getItem(TENANTS_STORAGE_KEY);
     if (!raw) {
-      localStorage.setItem(TENANTS_STORAGE_KEY, JSON.stringify(DEFAULT_TENANTS));
-      return DEFAULT_TENANTS;
+      localStorage.setItem(TENANTS_STORAGE_KEY, JSON.stringify(memoryTenants));
+      return memoryTenants;
     }
     return JSON.parse(raw) as Tenant[];
   } catch (error) {
-    console.error("Failed to read tenants from storage:", error);
-    return DEFAULT_TENANTS;
+    return memoryTenants;
   }
 }
 
@@ -116,8 +203,8 @@ export function getTenants(): Tenant[] {
  */
 export function getActiveTenant(): Tenant {
   const tenants = getTenants();
-  if (typeof window === "undefined") {
-    return tenants[0];
+  if (!hasLocalStorage()) {
+    return tenants.find((t) => t.id === memoryActiveTenantId) || tenants[0];
   }
 
   try {
@@ -130,7 +217,6 @@ export function getActiveTenant(): Tenant {
     localStorage.setItem(ACTIVE_TENANT_ID_KEY, defaultTenant.id);
     return defaultTenant;
   } catch (error) {
-    console.error("Failed to get active tenant:", error);
     return tenants[0];
   }
 }
@@ -139,9 +225,17 @@ export function getActiveTenant(): Tenant {
  * Set the currently active freelancer tenant
  */
 export function setActiveTenantId(tenantId: string): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(ACTIVE_TENANT_ID_KEY, tenantId);
-  window.dispatchEvent(new Event("invoiceflow:tenant_changed"));
+  memoryActiveTenantId = tenantId;
+  if (hasLocalStorage()) {
+    try {
+      localStorage.setItem(ACTIVE_TENANT_ID_KEY, tenantId);
+    } catch (_) {}
+  }
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    try {
+      window.dispatchEvent(new Event("invoiceflow:tenant_changed"));
+    } catch (_) {}
+  }
 }
 
 /**
@@ -172,14 +266,19 @@ export function createTenant(input: {
       autoSyncAccounting: true,
       autoNotifySlack: false,
       defaultPaymentTermsDays: 14,
+      emailTemplate: DEFAULT_EMAIL_TEMPLATE,
+      reminderSchedule: DEFAULT_REMINDER_SCHEDULE,
     },
   };
 
   const updated = [newTenant, ...tenants];
-  if (typeof window !== "undefined") {
-    localStorage.setItem(TENANTS_STORAGE_KEY, JSON.stringify(updated));
-    setActiveTenantId(newTenant.id);
+  memoryTenants = updated;
+  if (hasLocalStorage()) {
+    try {
+      localStorage.setItem(TENANTS_STORAGE_KEY, JSON.stringify(updated));
+    } catch (_) {}
   }
+  setActiveTenantId(newTenant.id);
 
   return newTenant;
 }
@@ -210,10 +309,66 @@ export function updateTenantConnectors(
   };
 
   tenants[index] = updatedTenant;
-  if (typeof window !== "undefined") {
-    localStorage.setItem(TENANTS_STORAGE_KEY, JSON.stringify(tenants));
-    window.dispatchEvent(new Event("invoiceflow:tenant_updated"));
+  memoryTenants = tenants;
+  if (hasLocalStorage()) {
+    try {
+      localStorage.setItem(TENANTS_STORAGE_KEY, JSON.stringify(tenants));
+    } catch (_) {}
+  }
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    try {
+      window.dispatchEvent(new Event("invoiceflow:tenant_updated"));
+    } catch (_) {}
   }
 
   return updatedTenant;
 }
+
+/**
+ * Update customizable settings (email template, reminder schedule) for a tenant
+ */
+export function updateTenantSettings(
+  tenantId: string,
+  newSettings: Partial<TenantSettings>
+): Tenant | null {
+  const tenants = getTenants();
+  const index = tenants.findIndex((t) => t.id === tenantId);
+  if (index === -1) return null;
+
+  const current = tenants[index];
+  const mergedSettings: TenantSettings = {
+    autoSyncAccounting: newSettings.autoSyncAccounting ?? current.settings?.autoSyncAccounting ?? true,
+    autoNotifySlack: newSettings.autoNotifySlack ?? current.settings?.autoNotifySlack ?? true,
+    defaultPaymentTermsDays:
+      newSettings.defaultPaymentTermsDays ?? current.settings?.defaultPaymentTermsDays ?? 14,
+    emailTemplate: {
+      ...(current.settings?.emailTemplate || DEFAULT_EMAIL_TEMPLATE),
+      ...(newSettings.emailTemplate || {}),
+    },
+    reminderSchedule: {
+      ...(current.settings?.reminderSchedule || DEFAULT_REMINDER_SCHEDULE),
+      ...(newSettings.reminderSchedule || {}),
+    },
+  };
+
+  const updatedTenant: Tenant = {
+    ...current,
+    settings: mergedSettings,
+  };
+
+  tenants[index] = updatedTenant;
+  memoryTenants = tenants;
+  if (hasLocalStorage()) {
+    try {
+      localStorage.setItem(TENANTS_STORAGE_KEY, JSON.stringify(tenants));
+    } catch (_) {}
+  }
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    try {
+      window.dispatchEvent(new Event("invoiceflow:tenant_updated"));
+    } catch (_) {}
+  }
+
+  return updatedTenant;
+}
+

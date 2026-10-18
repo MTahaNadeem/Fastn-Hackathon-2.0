@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { executeInvoiceLifecycleWorkflow, InvoiceLifecyclePayload } from "@/lib/fastn";
+import { getTenants, DEFAULT_EMAIL_TEMPLATE, DEFAULT_REMINDER_SCHEDULE } from "@/lib/tenant";
 
 /**
  * Webhook Endpoint: invoice.created
@@ -28,8 +29,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Look up tenant's customized settings or sensible defaults
+    const tenants = getTenants();
+    const tenant = tenants.find((t) => t.id === tenant_id);
+    const configuredTemplate = tenant?.settings?.emailTemplate || DEFAULT_EMAIL_TEMPLATE;
+    const configuredSchedule = tenant?.settings?.reminderSchedule || DEFAULT_REMINDER_SCHEDULE;
+
+    const enrichedPayload: InvoiceLifecyclePayload = {
+      ...payload,
+      email_subject: payload.email_subject || configuredTemplate.subject,
+      email_template: payload.email_template || configuredTemplate.body,
+      reminder_days: payload.reminder_days || configuredSchedule.daysBeforeDue,
+    };
+
     // Execute the lifecycle workflow with strict tenant isolation
-    const result = await executeInvoiceLifecycleWorkflow(payload);
+    const result = await executeInvoiceLifecycleWorkflow(enrichedPayload);
 
     return NextResponse.json(result, { status: result.success ? 200 : 500 });
   } catch (error: any) {

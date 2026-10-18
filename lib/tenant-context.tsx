@@ -3,11 +3,13 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import {
   Tenant,
+  TenantSettings,
   getTenants,
   getActiveTenant,
   setActiveTenantId,
   createTenant,
   updateTenantConnectors,
+  updateTenantSettings,
 } from "./tenant";
 
 interface TenantContextType {
@@ -21,6 +23,7 @@ interface TenantContextType {
     currency?: string;
   }) => Tenant;
   toggleConnector: (connectorId: string, connected: boolean) => void;
+  updateSettings: (newSettings: Partial<TenantSettings>) => void;
   refresh: () => void;
 }
 
@@ -73,6 +76,11 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     syncFromStorage();
   };
 
+  const updateSettings = (newSettings: Partial<TenantSettings>) => {
+    updateTenantSettings(tenant.id, newSettings);
+    syncFromStorage();
+  };
+
   return (
     <TenantContext.Provider
       value={{
@@ -81,6 +89,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
         switchTenant,
         registerTenant,
         toggleConnector,
+        updateSettings,
         refresh: syncFromStorage,
       }}
     >

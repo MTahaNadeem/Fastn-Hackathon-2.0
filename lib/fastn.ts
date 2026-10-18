@@ -571,7 +571,9 @@ export interface InvoiceLifecyclePayload {
   amount: number;
   due_date: string;
   freelancer_name: string;
+  email_subject?: string;
   email_template?: string;
+  reminder_days?: number[];
   spreadsheet_id?: string;
   slack_channel?: string;
 }
@@ -646,6 +648,15 @@ export async function executeInvoiceLifecycleWorkflow(
     // -------------------------------------------------------------
     // Step 2: Gmail Send Email (Tenant-Scoped)
     // -------------------------------------------------------------
+    const defaultSubject = `Invoice ${invoice_id} from ${freelancer_name || "Freelancer"}`;
+    const emailSubject = payload.email_subject
+      ? payload.email_subject
+          .replace(/{freelancer_name}/g, freelancer_name || "Freelancer")
+          .replace(/{invoice_id}/g, invoice_id)
+          .replace(/{amount}/g, String(amount))
+          .replace(/{due_date}/g, due_date)
+      : defaultSubject;
+
     const defaultBody =
       `Hi,\n\nPlease find your invoice ${invoice_id} from ${freelancer_name || "Freelancer"}.\n\n` +
       `Amount Due: $${amount}\n` +
@@ -665,34 +676,41 @@ export async function executeInvoiceLifecycleWorkflow(
       return {
         messageId: `msg_${Math.random().toString(36).substring(2, 12)}`,
         to: client_email,
-        subject: `Invoice from ${freelancer_name || "Freelancer"}`,
+        subject: emailSubject,
         resolvedTenant: tenant_id,
       };
     });
 
     steps.gmail = {
       status: "success",
-      detail: `Email dispatched to ${client_email} via tenant [${tenant_id}] Gmail account.`,
+      detail: `Email dispatched to ${client_email} via tenant [${tenant_id}] Gmail account. Subject: "${emailSubject}"`,
       attempts: gmailRes.attempts,
     };
 
     // -------------------------------------------------------------
-    // Step 3: Google Calendar Event (Tenant-Scoped, 2 Reminders)
+    // Step 3: Google Calendar Event (Tenant-Scoped, Configured Reminders)
     // -------------------------------------------------------------
+    const reminderDays = payload.reminder_days || [3, 0];
+    const reminderLabels = reminderDays.map((d) =>
+      d === 0 ? "On due date (0m)" : `${d} days before (${d * 1440}m)`
+    );
+
     const calRes = await runWithBackoff("Google Calendar Connector", async () => {
       // Calls Fastn Google Calendar connector partitioned to tenant_id
       return {
         eventId: `evt_${Math.random().toString(36).substring(2, 12)}`,
         summary: `Invoice due: ${client_email}`,
         dueDate: due_date,
-        reminders: ["3 days before (4320m)", "On due date (0m)"],
+        reminders: reminderLabels,
         resolvedTenant: tenant_id,
       };
     });
 
     steps.calendar = {
       status: "success",
-      detail: `Event created for ${due_date} with 3-day and due-date popup reminders via tenant [${tenant_id}] Calendar.`,
+      detail: `Event created for ${due_date} with [${reminderLabels.join(
+        ", "
+      )}] reminders via tenant [${tenant_id}] Calendar.`,
       attempts: calRes.attempts,
     };
 
