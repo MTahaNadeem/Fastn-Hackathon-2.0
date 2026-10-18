@@ -1,0 +1,106 @@
+{
+  "name": "invoice-lifecycle",
+  "slug": "invoice-lifecycle",
+  "description": "Multi-tenant freelancer invoice lifecycle automation: dispatches client invoice via Gmail, schedules Google Calendar due date reminders, appends tracking rows to Google Sheets, and notifies Slack with isolated per-tenant credentials and exponential backoff retry.",
+  "enabled": true,
+  "executionTier": "standard",
+  "timeoutMs": 120000,
+  "trigger": {
+    "type": "webhook",
+    "event": "invoice.created",
+    "description": "Fired by InvoiceFlow when a freelancer creates an invoice"
+  },
+  "connectorManifest": [
+    {
+      "slug": "gmail",
+      "scope": "MULTI_TENANT",
+      "actions": ["sendEmail"]
+    },
+    {
+      "slug": "googleCalendar",
+      "scope": "MULTI_TENANT",
+      "actions": ["createEvent"]
+    },
+    {
+      "slug": "googleSheets",
+      "scope": "MULTI_TENANT",
+      "actions": ["appendRow"]
+    },
+    {
+      "slug": "slack",
+      "scope": "MULTI_TENANT",
+      "actions": ["sendMessage"]
+    }
+  ],
+  "inputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "tenant_id": {
+        "type": "string",
+        "description": "Unique freelancer tenant identifier used to resolve per-tenant credentials"
+      },
+      "invoice_id": {
+        "type": "string",
+        "description": "Invoice number or unique identifier (e.g. INV-2026-001)"
+      },
+      "client_email": {
+        "type": "string",
+        "format": "email",
+        "description": "Client email address to receive invoice and calendar reminders"
+      },
+      "amount": {
+        "type": "number",
+        "description": "Total invoice amount"
+      },
+      "due_date": {
+        "type": "string",
+        "format": "date",
+        "description": "Invoice due date (YYYY-MM-DD)"
+      },
+      "freelancer_name": {
+        "type": "string",
+        "description": "Display name of the freelancer"
+      },
+      "email_template": {
+        "type": "string",
+        "description": "Optional custom email template with placeholders: {freelancer_name}, {invoice_id}, {amount}, {due_date}"
+      },
+      "spreadsheet_id": {
+        "type": "string",
+        "description": "Optional Google Spreadsheet ID to append records to"
+      },
+      "slack_channel": {
+        "type": "string",
+        "description": "Optional Slack channel to post updates to (default #invoices)"
+      }
+    },
+    "required": ["tenant_id", "invoice_id", "client_email", "amount", "due_date", "freelancer_name"]
+  },
+  "retryPolicy": {
+    "maxAttempts": 3,
+    "initialIntervalMs": 1000,
+    "backoffCoefficient": 2,
+    "maximumIntervalMs": 10000
+  },
+  "testInput": "{\"tenant_id\":\"tenant-sarah-chen\",\"invoice_id\":\"INV-2026-001\",\"client_email\":\"billing@acmefintech.io\",\"amount\":5250,\"due_date\":\"2026-10-31\",\"freelancer_name\":\"Sarah Chen\"}",
+  "testHeaders": "{\"x-end-org-id\":\"tenant-sarah-chen\",\"x-fastn-space-tenantid\":\"freelancer-sarah-chen\"}",
+  "testCases": [
+    {
+      "id": "case-tenant-a-sarah",
+      "scenario": "Tenant A (Sarah Chen) creates invoice INV-2026-001",
+      "mode": "live",
+      "input": "{\"tenant_id\":\"tenant-sarah-chen\",\"invoice_id\":\"INV-2026-001\",\"client_email\":\"billing@acmefintech.io\",\"amount\":5250,\"due_date\":\"2026-10-31\",\"freelancer_name\":\"Sarah Chen\"}",
+      "headers": "{\"x-end-org-id\":\"tenant-sarah-chen\",\"x-fastn-space-tenantid\":\"freelancer-sarah-chen\"}",
+      "pass": "result.success === true && result.tenant_id === 'tenant-sarah-chen'"
+    },
+    {
+      "id": "case-tenant-b-alex",
+      "scenario": "Tenant B (Alex Rivera) creates invoice INV-2026-101 (Isolated Tenant Test)",
+      "mode": "live",
+      "input": "{\"tenant_id\":\"tenant-alex-rivera\",\"invoice_id\":\"INV-2026-101\",\"client_email\":\"ap@greenpulse.io\",\"amount\":4400,\"due_date\":\"2026-11-05\",\"freelancer_name\":\"Alex Rivera\"}",
+      "headers": "{\"x-end-org-id\":\"tenant-alex-rivera\",\"x-fastn-space-tenantid\":\"freelancer-alex-rivera\"}",
+      "pass": "result.success === true && result.tenant_id === 'tenant-alex-rivera'"
+    }
+  ]
+}
