@@ -23,7 +23,7 @@ if (typeof window === "undefined") {
 export interface FastnConnectorMetadata {
   id: string;
   name: string;
-  category: "accounting" | "payments" | "communication";
+  category: "email" | "calendar" | "productivity" | "communication" | "payments" | "accounting";
   description: string;
   icon: string;
   authType: "oauth2" | "apiKey";
@@ -39,10 +39,59 @@ export interface FastnConnectorMetadata {
 
 export const CONNECTOR_CATALOG: FastnConnectorMetadata[] = [
   {
+    id: "gmail",
+    name: "Gmail",
+    category: "email",
+    description: "Send professional invoice emails, payment reminders, and receipts directly from your connected Google inbox.",
+    icon: "✉️",
+    authType: "oauth2",
+    requiredFields: [
+      { key: "email", label: "Gmail Address", type: "text", placeholder: "you@example.com", required: true },
+    ],
+    supportedActions: ["send_email", "create_draft", "track_delivery"],
+  },
+  {
+    id: "google_calendar",
+    name: "Google Calendar",
+    category: "calendar",
+    description: "Automatically schedule invoice due dates with automated 3-day and day-of reminders directly on your calendar.",
+    icon: "📅",
+    authType: "oauth2",
+    requiredFields: [
+      { key: "calendarId", label: "Calendar ID", type: "text", placeholder: "primary", required: true },
+    ],
+    supportedActions: ["create_event", "set_reminders", "update_event"],
+  },
+  {
+    id: "google_sheets",
+    name: "Google Sheets",
+    category: "productivity",
+    description: "Append invoice records to your ledger spreadsheet, track pending payments, and maintain an audit log in real time.",
+    icon: "📊",
+    authType: "oauth2",
+    requiredFields: [
+      { key: "spreadsheetId", label: "Spreadsheet ID", type: "text", placeholder: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms", required: true },
+      { key: "sheetName", label: "Sheet Name", type: "text", placeholder: "Invoices", required: false },
+    ],
+    supportedActions: ["append_row", "update_row", "read_rows"],
+  },
+  {
+    id: "slack",
+    name: "Slack",
+    category: "communication",
+    description: "Post instantaneous status alerts to designated team channels whenever invoices are created, viewed, or paid.",
+    icon: "💬",
+    authType: "oauth2",
+    requiredFields: [
+      { key: "webhookUrl", label: "Incoming Webhook / Channel", type: "text", placeholder: "https://hooks.slack.com/services/...", required: true },
+    ],
+    supportedActions: ["post_message", "send_channel_alert"],
+  },
+  {
     id: "stripe",
-    name: "Stripe Payments",
+    name: "Stripe",
     category: "payments",
-    description: "Generate instant hosted payment links and sync payout statuses automatically.",
+    description: "Accept credit cards, Apple Pay, Google Pay, and bank debits with hosted checkout links and real-time webhook reconciliation.",
     icon: "💳",
     authType: "apiKey",
     requiredFields: [
@@ -52,11 +101,25 @@ export const CONNECTOR_CATALOG: FastnConnectorMetadata[] = [
     supportedActions: ["create_payment_link", "check_payout_status", "refund_charge"],
   },
   {
+    id: "jazzcash",
+    name: "JazzCash",
+    category: "payments",
+    description: "Enable instant Pakistani mobile wallet checkout and direct bank transfers with automated IPN transaction verification.",
+    icon: "📱",
+    authType: "apiKey",
+    requiredFields: [
+      { key: "merchantId", label: "Merchant ID", type: "text", placeholder: "MC123456", required: true },
+      { key: "password", label: "API Password", type: "password", placeholder: "••••••••", required: true },
+      { key: "integritySalt", label: "Integrity Salt", type: "password", placeholder: "••••••••", required: true },
+    ],
+    supportedActions: ["create_checkout", "inquiry", "verify_ipn"],
+  },
+  {
     id: "quickbooks",
     name: "QuickBooks Online",
     category: "accounting",
     description: "Sync invoices, sales receipts, customer accounts, and tax codes directly into QuickBooks.",
-    icon: "📊",
+    icon: "📑",
     authType: "oauth2",
     requiredFields: [
       { key: "companyId", label: "Realm / Company ID", type: "text", placeholder: "9130347...", required: true },
@@ -89,18 +152,6 @@ export const CONNECTOR_CATALOG: FastnConnectorMetadata[] = [
       { key: "clientSecret", label: "Client Secret", type: "password", placeholder: "EK...", required: true },
     ],
     supportedActions: ["create_order", "capture_payment"],
-  },
-  {
-    id: "slack",
-    name: "Slack Notifications",
-    category: "communication",
-    description: "Receive instant notifications when invoices are viewed, paid, or past due.",
-    icon: "💬",
-    authType: "apiKey",
-    requiredFields: [
-      { key: "webhookUrl", label: "Incoming Webhook URL", type: "text", placeholder: "https://hooks.slack.com/services/...", required: true },
-    ],
-    supportedActions: ["post_message", "send_channel_alert"],
   },
   {
     id: "freshbooks",
@@ -223,6 +274,184 @@ export async function fetchConnectorsForTenant(tenantNamespace: string) {
     connectors: CONNECTOR_CATALOG,
     live: false,
     tenantNamespace,
+  };
+}
+
+export interface FastnConnectionRecord {
+  id: string;
+  name: string;
+  category: string;
+  icon: string;
+  connected: boolean;
+  status: "connected" | "not_connected" | "pending";
+  connectionId?: string;
+  accountEmail?: string;
+  lastSyncedAt?: string;
+}
+
+// In-memory tenant connection store
+const TENANT_CONNECTION_STORE: Record<
+  string,
+  Record<
+    string,
+    { connected: boolean; connectionId: string; lastSyncedAt: string; accountEmail?: string }
+  >
+> = {
+  "tenant-sarah-chen": {
+    gmail: {
+      connected: true,
+      connectionId: "ucl:org:live:gmail:auth:tenant-sarah-chen",
+      lastSyncedAt: new Date().toISOString(),
+      accountEmail: "sarah@chendesign.io",
+    },
+    google_calendar: {
+      connected: true,
+      connectionId: "ucl:org:live:calendar:auth:tenant-sarah-chen",
+      lastSyncedAt: new Date().toISOString(),
+    },
+    google_sheets: {
+      connected: true,
+      connectionId: "ucl:org:live:sheets:auth:tenant-sarah-chen",
+      lastSyncedAt: new Date().toISOString(),
+    },
+    slack: {
+      connected: true,
+      connectionId: "ucl:org:live:slack:auth:tenant-sarah-chen",
+      lastSyncedAt: new Date().toISOString(),
+    },
+    stripe: {
+      connected: true,
+      connectionId: "ucl:org:live:stripe:auth:tenant-sarah-chen",
+      lastSyncedAt: new Date().toISOString(),
+      accountEmail: "acct_1N923kSarah",
+    },
+  },
+  "tenant-alex-rivera": {
+    jazzcash: {
+      connected: true,
+      connectionId: "ucl:org:live:jazzcash:auth:tenant-alex-rivera",
+      lastSyncedAt: new Date().toISOString(),
+      accountEmail: "merchant_03001234567",
+    },
+    google_sheets: {
+      connected: true,
+      connectionId: "ucl:org:live:sheets:auth:tenant-alex-rivera",
+      lastSyncedAt: new Date().toISOString(),
+    },
+  },
+};
+
+export const CORE_CONNECTOR_IDS = [
+  "gmail",
+  "google_calendar",
+  "google_sheets",
+  "slack",
+  "stripe",
+  "jazzcash",
+] as const;
+
+export function getTenantConnections(tenantId: string): FastnConnectionRecord[] {
+  const store = TENANT_CONNECTION_STORE[tenantId] || {};
+  return CORE_CONNECTOR_IDS.map((id) => {
+    const meta = CONNECTOR_CATALOG.find((c) => c.id === id);
+    const existing = store[id];
+    const isConnected = Boolean(existing?.connected);
+    return {
+      id,
+      name: meta?.name || id,
+      category: meta?.category || "general",
+      icon: meta?.icon || "🔌",
+      connected: isConnected,
+      status: isConnected ? "connected" : "not_connected",
+      connectionId: existing?.connectionId || (isConnected ? `ucl:fastn:${id}:${tenantId}` : undefined),
+      accountEmail: existing?.accountEmail,
+      lastSyncedAt: existing?.lastSyncedAt || (isConnected ? new Date().toISOString() : undefined),
+    };
+  });
+}
+
+export function setTenantConnectionStatus(
+  tenantId: string,
+  connectorId: string,
+  connected: boolean,
+  metadata?: { accountEmail?: string }
+): FastnConnectionRecord[] {
+  if (!TENANT_CONNECTION_STORE[tenantId]) {
+    TENANT_CONNECTION_STORE[tenantId] = {};
+  }
+  if (connected) {
+    TENANT_CONNECTION_STORE[tenantId][connectorId] = {
+      connected: true,
+      connectionId: `ucl:fastn:${connectorId}:${tenantId}`,
+      lastSyncedAt: new Date().toISOString(),
+      accountEmail: metadata?.accountEmail || `${tenantId}@connected.fastn`,
+    };
+  } else {
+    delete TENANT_CONNECTION_STORE[tenantId][connectorId];
+  }
+  return getTenantConnections(tenantId);
+}
+
+/**
+ * Generate a short-lived Fastn Embed Token for customer/tenant scoped connection flows.
+ * Per Fastn Embed Docs: POST /api/v1/embed/token with endOrgId: tenantId
+ */
+export async function generateFastnEmbedToken(tenantId: string, connectorId?: string) {
+  const apiKey = process.env.FASTN_API_KEY || "";
+  const workspaceId = process.env.FASTN_WORKSPACE_ID || "";
+  const fastnHost = process.env.FASTN_HOST || "https://live.gcp.fastn.ai";
+
+  // If live credentials exist, attempt to mint token from Fastn Embed API
+  if (isFastnConfigured()) {
+    try {
+      const resp = await fetch(`${fastnHost}/api/v1/embed/token`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "x-org-id": workspaceId,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          endOrgId: tenantId,
+          role: "end_user",
+        }),
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        const token = data.token;
+        const embedUrl = `${fastnHost}/api/v1/embed/iframe?token=${token}${
+          connectorId ? `&connector=${connectorId}` : ""
+        }`;
+        return {
+          success: true,
+          token,
+          endOrgId: tenantId,
+          role: "end_user",
+          expiresIn: data.expiresIn || 28800,
+          embedUrl,
+          isSimulation: false,
+        };
+      }
+    } catch (err) {
+      console.warn("Live Fastn embed token generation error:", err);
+    }
+  }
+
+  // Fallback to local sandbox token and self-hosted embed widget iframe
+  const mockToken = `emb_dev_${tenantId}_${connectorId || "all"}_${Date.now().toString(36)}`;
+  const embedUrl = `/api/fastn/embed/widget?token=${mockToken}&tenant_id=${encodeURIComponent(
+    tenantId
+  )}${connectorId ? `&connector_id=${encodeURIComponent(connectorId)}` : ""}`;
+
+  return {
+    success: true,
+    token: mockToken,
+    endOrgId: tenantId,
+    role: "end_user",
+    expiresIn: 28800,
+    embedUrl,
+    isSimulation: true,
   };
 }
 

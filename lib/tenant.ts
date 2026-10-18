@@ -35,7 +35,7 @@ export const DEFAULT_TENANTS: Tenant[] = [
     fastnNamespace: "freelancer-sarah-chen",
     currency: "USD",
     createdAt: "2026-01-15T09:00:00Z",
-    connectedConnectors: ["stripe", "quickbooks", "slack"],
+    connectedConnectors: ["gmail", "google_calendar", "google_sheets", "slack", "stripe"],
     settings: {
       autoSyncAccounting: true,
       autoNotifySlack: true,
@@ -50,7 +50,7 @@ export const DEFAULT_TENANTS: Tenant[] = [
     fastnNamespace: "freelancer-alex-rivera",
     currency: "USD",
     createdAt: "2026-02-01T11:30:00Z",
-    connectedConnectors: ["stripe", "xero"],
+    connectedConnectors: ["jazzcash", "google_sheets"],
     settings: {
       autoSyncAccounting: true,
       autoNotifySlack: false,
@@ -65,7 +65,7 @@ export const DEFAULT_TENANTS: Tenant[] = [
     fastnNamespace: "freelancer-maya-patel",
     currency: "USD",
     createdAt: "2026-02-20T14:15:00Z",
-    connectedConnectors: ["paypal"],
+    connectedConnectors: [],
     settings: {
       autoSyncAccounting: false,
       autoNotifySlack: false,
