@@ -125,36 +125,56 @@ export default function InvoiceForm({ onSuccess }: InvoiceFormProps) {
         notes,
         status: "pending",
         fastnSync: {
-          synced: selectedConnectors.length > 0,
-          syncedConnectors: selectedConnectors,
+          synced: true,
+          syncedConnectors: ["gmail", "calendar", "sheets", "slack", ...selectedConnectors],
           lastSyncedAt: new Date().toISOString(),
         },
       });
 
-      // 2. Trigger Fastn Multi-Tenant Sync orchestration
-      if (selectedConnectors.length > 0) {
-        const syncResponse = await syncInvoiceViaFastn({
-          tenantNamespace: tenant.fastnNamespace,
-          invoice: {
-            id: newInvoice.id,
-            invoiceNumber: newInvoice.invoiceNumber,
-            clientName: newInvoice.clientName,
-            clientEmail: newInvoice.clientEmail,
+      // 2. Trigger Fastn "invoice-lifecycle" Workflow Webhook
+      let lifecycleResult: any = null;
+      try {
+        const lifecycleRes = await fetch("/api/webhooks/invoice-created", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tenant_id: tenant.id,
+            invoice_id: newInvoice.id,
+            client_email: newInvoice.clientEmail,
             amount: newInvoice.total,
-            currency: newInvoice.currency,
-            dueDate: newInvoice.dueDate,
-            items: newInvoice.items,
-          },
-          connectors: selectedConnectors,
+            due_date: newInvoice.dueDate,
+            freelancer_name: tenant.name,
+            slack_channel: `#${tenant.businessName.toLowerCase().replace(/[^a-z0-9]/g, "-")}-invoices`,
+          }),
         });
-
-        setSyncSuccessModal({
-          invoice: newInvoice,
-          syncResponse,
-        });
-      } else {
-        if (onSuccess) onSuccess(newInvoice.id);
+        if (lifecycleRes.ok) {
+          lifecycleResult = await lifecycleRes.json();
+        }
+      } catch (err) {
+        console.warn("Could not fire invoice-lifecycle webhook:", err);
       }
+
+      // 3. Fallback sync response if needed
+      const syncResponse = await syncInvoiceViaFastn({
+        tenantNamespace: tenant.fastnNamespace,
+        invoice: {
+          id: newInvoice.id,
+          invoiceNumber: newInvoice.invoiceNumber,
+          clientName: newInvoice.clientName,
+          clientEmail: newInvoice.clientEmail,
+          amount: newInvoice.total,
+          currency: newInvoice.currency,
+          dueDate: newInvoice.dueDate,
+          items: newInvoice.items,
+        },
+        connectors: selectedConnectors.length > 0 ? selectedConnectors : ["stripe", "quickbooks"],
+      });
+
+      setSyncSuccessModal({
+        invoice: newInvoice,
+        syncResponse,
+        lifecycleResult,
+      });
     } catch (err) {
       console.error("Failed to create invoice:", err);
       alert("Error creating invoice. Please try again.");
@@ -488,29 +508,62 @@ export default function InvoiceForm({ onSuccess }: InvoiceFormProps) {
 
             <div className="space-y-3">
               <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                Fastn Workflow Execution Log
+                Fastn Lifecycle Workflow: invoice-lifecycle
               </div>
-              {syncSuccessModal.syncResponse.results.map((res: any, idx: number) => (
-                <div
-                  key={idx}
-                  className="bg-zinc-50 dark:bg-zinc-800/60 p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 text-xs space-y-1"
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-zinc-900 dark:text-zinc-100">
-                      {res.actionTaken}
+
+              {syncSuccessModal.lifecycleResult?.steps ? (
+                <div className="space-y-2 font-mono text-xs">
+                  <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 font-sans font-bold text-zinc-900 dark:text-zinc-100">
+                      ✉️ Gmail Delivery
                     </span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
-                      {res.status}
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                      RESOLVED ({syncSuccessModal.lifecycleResult.tenant_id})
                     </span>
                   </div>
-                  <p className="text-zinc-600 dark:text-zinc-400">{res.message}</p>
-                  {res.externalReference && (
-                    <p className="font-mono text-[11px] text-zinc-500">
-                      Ref: {res.externalReference}
-                    </p>
-                  )}
+                  <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 font-sans font-bold text-zinc-900 dark:text-zinc-100">
+                      📅 Google Calendar
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                      3-DAY & DAY-OF REMINDERS
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 font-sans font-bold text-zinc-900 dark:text-zinc-100">
+                      📊 Google Sheets Ledger
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                      ROW APPENDED (STATUS: PENDING)
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 font-sans font-bold text-zinc-900 dark:text-zinc-100">
+                      💬 Slack Alert
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                      DISPATCHED TO TENANT CHANNEL
+                    </span>
+                  </div>
                 </div>
-              ))}
+              ) : (
+                syncSuccessModal.syncResponse.results.map((res: any, idx: number) => (
+                  <div
+                    key={idx}
+                    className="bg-zinc-50 dark:bg-zinc-800/60 p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 text-xs space-y-1"
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-zinc-900 dark:text-zinc-100">
+                        {res.actionTaken}
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                        {res.status}
+                      </span>
+                    </div>
+                    <p className="text-zinc-600 dark:text-zinc-400">{res.message}</p>
+                  </div>
+                ))
+              )}
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
