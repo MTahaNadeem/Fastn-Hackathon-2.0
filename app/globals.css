@@ -1,26 +1,64 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafafa;
+  --foreground: #4a4a4a;
+  --heading: #1a1a1a;
+  --muted: #737373;
+  --surface: #ffffff;
+  --surface-subtle: #f4f4f5;
+  --border-subtle: #e5e7eb;
+  
+  /* Primary Fintech Accent: Deep Confident Teal */
+  --primary: #0f766e;
+  --primary-hover: #0d5c56;
+  --primary-light: #f0fdfa;
+  --primary-border: #ccfbf1;
+  --primary-focus: rgba(15, 118, 110, 0.2);
+
+  /* Status Accents (Used sparingly as badges/dots, not full backgrounds) */
+  --status-paid-bg: #f0fdf4;
+  --status-paid-text: #15803d;
+  --status-paid-border: #bbf7d0;
+
+  --status-pending-bg: #fffbeb;
+  --status-pending-text: #b45309;
+  --status-pending-border: #fde68a;
+
+  --status-error-bg: #fff1f2;
+  --status-error-text: #be123c;
+  --status-error-border: #fecdd3;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-geist-mono), monospace;
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Soft Elevation Utility */
+.shadow-soft {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
+}
+
+.shadow-card {
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.04), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+}
+
+.shadow-hover {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.shadow-hover:hover {
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.06), 0 4px 10px -2px rgba(0, 0, 0, 0.03);
+  transform: translateY(-1px);
 }

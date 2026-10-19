@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "InvoiceFlow | Multi-Tenant Freelancer Invoicing via Fastn",
   description:
-    "Next.js invoicing platform empowering freelancers with Fastn connection namespaces for QuickBooks, Stripe, Xero, PayPal, and Slack.",
+    "Next.js invoicing platform empowering freelancers with Fastn connection namespaces for Gmail, Calendar, Sheets, Slack, and JazzCash.",
 };
 
 export default function RootLayout({
@@ -30,21 +30,21 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans">
+      <body className="min-h-full flex flex-col bg-[#FAFAFA] text-[#4A4A4A] font-sans">
         <TenantProvider>
           <Navbar />
           <main className="flex-1">{children}</main>
-          <footer className="border-t border-zinc-200 dark:border-zinc-800 py-6 text-center text-xs text-zinc-500 bg-white dark:bg-zinc-900">
-            <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <footer className="border-t border-neutral-200/80 py-8 text-center text-xs text-[#737373] bg-white">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-zinc-700 dark:text-zinc-300">InvoiceFlow</span>
-                <span>•</span>
-                <span>Fastn Hackathon 2.0 Tenant Integration</span>
+                <span className="font-semibold text-[#1A1A1A]">InvoiceFlow</span>
+                <span className="text-neutral-300">•</span>
+                <span>Fastn 2.0 Multi-Tenant Engine</span>
               </div>
-              <div className="flex items-center gap-4 text-zinc-400">
-                <span>Fastn Connection Namespaces</span>
-                <span>•</span>
-                <span>Stripe • QuickBooks • Xero • Slack</span>
+              <div className="flex items-center gap-3 text-neutral-400 text-[11px]">
+                <span>Isolated Connection Namespaces</span>
+                <span className="text-neutral-300">•</span>
+                <span>JazzCash • Gmail • Google Calendar • Google Sheets • Slack</span>
               </div>
             </div>
           </footer>

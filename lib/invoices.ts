@@ -39,6 +39,9 @@ export interface Invoice {
   createdAt: string;
 }
 
+import { formatPKR, DEFAULT_CURRENCY } from "./currency";
+export { formatPKR, DEFAULT_CURRENCY };
+
 export const SEED_INVOICES: Invoice[] = [
   {
     id: "inv-001",
@@ -50,23 +53,23 @@ export const SEED_INVOICES: Invoice[] = [
     issueDate: "2026-10-10",
     dueDate: "2026-10-24",
     items: [
-      { id: "item-1", description: "Design System Architecture & Figma Tokens", quantity: 30, unitPrice: 120, total: 3600 },
-      { id: "item-2", description: "Mobile App Dark Mode UI Audit", quantity: 10, unitPrice: 140, total: 1400 },
+      { id: "item-1", description: "Design System Architecture & Figma Tokens", quantity: 30, unitPrice: 12000, total: 360000 },
+      { id: "item-2", description: "Mobile App Dark Mode UI Audit", quantity: 10, unitPrice: 14000, total: 140000 },
     ],
-    subtotal: 5000,
+    subtotal: 500000,
     taxRate: 5,
-    taxAmount: 250,
+    taxAmount: 25000,
     discount: 0,
-    total: 5250,
-    currency: "USD",
+    total: 525000,
+    currency: "PKR",
     notes: "Thank you for your business! Payment due within 14 days.",
     status: "paid",
     fastnSync: {
       synced: true,
-      syncedConnectors: ["stripe", "quickbooks"],
+      syncedConnectors: ["jazzcash", "quickbooks"],
       lastSyncedAt: "2026-10-10T14:30:00Z",
       details: [
-        { connectorId: "stripe", reference: "cs_test_887412", status: "success" },
+        { connectorId: "jazzcash", reference: "jz_sandbox_887412", status: "success" },
         { connectorId: "quickbooks", reference: "QBO-INV-10924", status: "success" },
       ],
     },
@@ -82,22 +85,22 @@ export const SEED_INVOICES: Invoice[] = [
     issueDate: "2026-10-14",
     dueDate: "2026-10-28",
     items: [
-      { id: "item-3", description: "Patient Portal Web Experience Redesign", quantity: 25, unitPrice: 120, total: 3000 },
+      { id: "item-3", description: "Patient Portal Web Experience Redesign", quantity: 25, unitPrice: 12000, total: 300000 },
     ],
-    subtotal: 3000,
+    subtotal: 300000,
     taxRate: 0,
     taxAmount: 0,
-    discount: 200,
-    total: 2800,
-    currency: "USD",
+    discount: 20000,
+    total: 280000,
+    currency: "PKR",
     notes: "Includes 1 month warranty support.",
     status: "pending",
     fastnSync: {
       synced: true,
-      syncedConnectors: ["stripe", "slack"],
+      syncedConnectors: ["jazzcash", "slack"],
       lastSyncedAt: "2026-10-14T16:20:00Z",
       details: [
-        { connectorId: "stripe", reference: "cs_test_992143", status: "success" },
+        { connectorId: "jazzcash", reference: "jz_sandbox_992143", status: "success" },
         { connectorId: "slack", status: "success" },
       ],
     },
@@ -112,14 +115,14 @@ export const SEED_INVOICES: Invoice[] = [
     issueDate: "2026-10-17",
     dueDate: "2026-10-31",
     items: [
-      { id: "item-4", description: "Brand Identity Guidelines & Iconography", quantity: 1, unitPrice: 1850, total: 1850 },
+      { id: "item-4", description: "Brand Identity Guidelines & Iconography", quantity: 1, unitPrice: 185000, total: 185000 },
     ],
-    subtotal: 1850,
+    subtotal: 185000,
     taxRate: 0,
     taxAmount: 0,
     discount: 0,
-    total: 1850,
-    currency: "USD",
+    total: 185000,
+    currency: "PKR",
     notes: "Payment link attached.",
     status: "pending",
     fastnSync: {
@@ -137,18 +140,18 @@ export const SEED_INVOICES: Invoice[] = [
     issueDate: "2026-10-05",
     dueDate: "2026-11-05",
     items: [
-      { id: "item-5", description: "Next.js 16 Microfrontend Migration", quantity: 40, unitPrice: 110, total: 4400 },
+      { id: "item-5", description: "Next.js 16 Microfrontend Migration", quantity: 40, unitPrice: 11000, total: 440000 },
     ],
-    subtotal: 4400,
+    subtotal: 440000,
     taxRate: 0,
     taxAmount: 0,
     discount: 0,
-    total: 4400,
-    currency: "USD",
+    total: 440000,
+    currency: "PKR",
     status: "pending",
     fastnSync: {
       synced: true,
-      syncedConnectors: ["xero", "stripe"],
+      syncedConnectors: ["jazzcash", "slack"],
       lastSyncedAt: "2026-10-05T10:00:00Z",
     },
     createdAt: "2026-10-05T10:00:00Z",
@@ -161,7 +164,7 @@ const INVOICES_STORAGE_KEY = "invoiceflow_invoices";
  * Get all invoices stored in the application
  */
 export function getAllInvoices(): Invoice[] {
-  if (typeof window === "undefined") {
+  if (typeof window === "undefined" || typeof localStorage === "undefined") {
     return SEED_INVOICES;
   }
 
@@ -201,7 +204,7 @@ export function createInvoice(
   };
 
   const updated = [newInvoice, ...all];
-  if (typeof window !== "undefined") {
+  if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
     localStorage.setItem(INVOICES_STORAGE_KEY, JSON.stringify(updated));
     window.dispatchEvent(new Event("invoiceflow:invoices_updated"));
   }
@@ -221,7 +224,7 @@ export function updateInvoiceStatus(
   if (index === -1) return null;
 
   all[index] = { ...all[index], status };
-  if (typeof window !== "undefined") {
+  if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
     localStorage.setItem(INVOICES_STORAGE_KEY, JSON.stringify(all));
     window.dispatchEvent(new Event("invoiceflow:invoices_updated"));
   }

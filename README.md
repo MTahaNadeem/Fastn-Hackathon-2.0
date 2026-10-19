@@ -4,7 +4,7 @@
 
 InvoiceFlow is a Next.js application built for the **Fastn Hackathon 2.0**. It solves the multi-platform fragmentation freelancers face by pairing a clean invoicing workflow with Fastn's connector marketplace.
 
-Every signed-up freelancer operates as an isolated **tenant** with their own **Fastn connection namespace**, allowing them to connect their own Stripe, QuickBooks, Xero, PayPal, and Slack accounts without leaking credentials or cross-contaminating accounting records.
+Every signed-up freelancer operates as an isolated **tenant** with their own **Fastn connection namespace**, allowing them to connect their own JazzCash, Gmail, Google Calendar, Google Sheets, and Slack accounts without leaking credentials or cross-contaminating accounting records.
 
 ---
 
@@ -19,12 +19,12 @@ Every signed-up freelancer operates as an isolated **tenant** with their own **F
   - Integration helpers for querying marketplace connectors, configuring credentials, testing connection links, and dispatching invoice sync workflows.
   - Safe Node/SSR guards and development fallback mode for local development.
 - **Automated Invoicing & Sync (`/app/invoices/create`)**:
-  - Dynamic line items with auto-computed subtotal, customizable tax rate, discounts, and total.
-  - Fastn multi-tenant sync toggles (QuickBooks, Stripe, Slack).
+  - Dynamic line items with auto-computed subtotal, customizable tax rate, discounts, and total in PKR.
+  - Fastn multi-tenant sync toggles (QuickBooks, JazzCash, Slack).
   - Instant dispatch to accounting ledgers and payment links.
 - **Connect Accounts Hub (`/app/connect-accounts`)**:
-  - Browse Fastn's connector catalog (Stripe, QuickBooks, Xero, PayPal, Slack, FreshBooks).
-  - Connection status badges, credential modal, and connection testing.
+  - Browse Fastn's designated connector suite (Gmail, Google Calendar, Google Sheets, Slack, JazzCash = 5 integrations).
+  - Connection status badges, credential modal, embedded widget launch, and connection testing.
 - **Financial Overview Dashboard (`/app/dashboard`)**:
   - Real-time receivables, total invoiced, settled payments, and active Fastn connectors.
   - Filterable invoice table (`InvoiceList`) with status badges and Fastn sync logs.
@@ -122,4 +122,4 @@ In Fastn, every request to fetch or manipulate connectors can be passed the head
 - `x-fastn-space-id`: Your global Fastn Workspace ID.
 - `x-fastn-space-tenantid`: The freelancer's isolated tenant namespace (e.g. `freelancer-sarah-chen`).
 
-When Freelancer A connects their Stripe account, the secret keys and webhook endpoints are stored under `tenantId: freelancer-sarah-chen`. When Freelancer B connects their QuickBooks account, it is stored under `tenantId: freelancer-alex-rivera`. Fastn ensures complete data partitioning between tenants.
+When Freelancer A connects their JazzCash merchant account, the secret credentials and IPN webhook endpoints are stored under `tenantId: freelancer-sarah-chen`. When Freelancer B connects their JazzCash account, it is stored under `tenantId: freelancer-alex-rivera`. Fastn ensures complete data partitioning between tenants.

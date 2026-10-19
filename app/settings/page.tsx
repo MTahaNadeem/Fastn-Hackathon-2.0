@@ -8,6 +8,7 @@ import {
   EmailTemplateConfig,
   ReminderScheduleConfig,
 } from "@/lib/tenant";
+import { formatPKR } from "@/lib/currency";
 import TenantSwitcher from "@/components/TenantSwitcher";
 import Link from "next/link";
 import {
@@ -32,8 +33,8 @@ const PLACEHOLDER_TAGS = [
   { tag: "{invoice_id}", label: "Invoice ID", sample: "INV-2026-001" },
   { tag: "{freelancer_name}", label: "Freelancer Name", sample: "Sarah Chen" },
   { tag: "{business_name}", label: "Business Name", sample: "Chen Design Studio" },
-  { tag: "{amount}", label: "Amount", sample: "5,250.00" },
-  { tag: "{currency}", label: "Currency", sample: "USD" },
+  { tag: "{amount}", label: "Amount", sample: "Rs. 5,250" },
+  { tag: "{currency}", label: "Currency", sample: "PKR" },
   { tag: "{due_date}", label: "Due Date", sample: "2026-11-15" },
   { tag: "{client_email}", label: "Client Email", sample: "client@acmecorp.com" },
 ];
@@ -146,20 +147,20 @@ export default function SettingsPage() {
     result = result.replace(/{invoice_id}/g, "INV-2026-001");
     result = result.replace(/{freelancer_name}/g, tenant.name || "Sarah Chen");
     result = result.replace(/{business_name}/g, tenant.businessName || "Chen Design Studio");
-    result = result.replace(/{amount}/g, "5,250.00");
-    result = result.replace(/{currency}/g, tenant.currency || "USD");
+    result = result.replace(/{amount}/g, formatPKR(5250));
+    result = result.replace(/{currency}/g, tenant.currency || "PKR");
     result = result.replace(/{due_date}/g, "2026-11-15");
     result = result.replace(/{client_email}/g, "client@acmecorp.com");
     return result;
   };
 
   return (
-    <div className="py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8">
+    <div className="py-10 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8">
       {/* Top Breadcrumb & Tenant Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <Link
           href="/dashboard"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-[#737373] hover:text-[#1A1A1A] transition"
         >
           <ArrowLeft className="w-3.5 h-3.5" /> Back to Dashboard
         </Link>
@@ -169,18 +170,18 @@ export default function SettingsPage() {
       </div>
 
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-blue-900/10 via-indigo-900/10 to-violet-900/10 border border-blue-200 dark:border-blue-800/40 rounded-3xl p-6 sm:p-7 backdrop-blur-sm">
+      <div className="bg-white border border-neutral-100 rounded-3xl p-6 sm:p-8 shadow-card">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#F0FDFA] text-[#0F766E] border border-[#CCFBF1]">
               <ShieldCheck className="w-3.5 h-3.5" /> Fastn Multi-Tenant Configuration
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-zinc-100">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1A1A1A]">
               Workflow Settings for {tenant.businessName}
             </h1>
-            <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 max-w-2xl leading-relaxed">
-              Customize email templates and automated Google Calendar reminder schedules.
-              Every setting is strictly partitioned to your tenant namespace (<code>{tenant.fastnNamespace}</code>) with zero leak across freelancers.
+            <p className="text-xs sm:text-sm text-[#4A4A4A] max-w-2xl leading-relaxed">
+              Customize email delivery templates and automated Google Calendar reminder schedules.
+              Every setting is strictly partitioned to your tenant namespace (<code className="font-mono text-[#0F766E]">{tenant.fastnNamespace}</code>) with zero leak across freelancers.
             </p>
           </div>
 
@@ -188,7 +189,7 @@ export default function SettingsPage() {
             <button
               type="button"
               onClick={handleResetToDefaults}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 text-xs font-semibold transition"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-neutral-200/90 bg-white hover:bg-neutral-50 text-[#1A1A1A] text-xs font-semibold transition shadow-2xs"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Reset Defaults</span>
@@ -196,7 +197,7 @@ export default function SettingsPage() {
             <button
               type="button"
               onClick={handleSave}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition shadow-sm hover:shadow"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0F766E] hover:bg-[#0D5C56] text-white text-xs font-semibold transition shadow-soft"
             >
               <Check className="w-4 h-4" />
               <span>Save Settings</span>
@@ -205,8 +206,8 @@ export default function SettingsPage() {
         </div>
 
         {savedToast && (
-          <div className="mt-4 p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2 animate-in fade-in">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <div className="mt-4 p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-2 animate-in fade-in">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
             <span>Settings successfully saved and active for {tenant.businessName}!</span>
           </div>
         )}
@@ -216,30 +217,30 @@ export default function SettingsPage() {
         {/* LEFT COLUMN: Configuration Forms */}
         <div className="lg:col-span-7 space-y-8">
           {/* 1. EMAIL TEMPLATE CUSTOMIZATION */}
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 sm:p-7 shadow-sm space-y-6">
-            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-4">
+          <div className="bg-white border border-neutral-100 rounded-3xl p-6 sm:p-8 shadow-card space-y-6">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-4">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500">
+                <div className="p-2.5 rounded-xl bg-red-50 border border-red-200/60 text-red-600">
                   <Mail className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                  <h2 className="text-base font-bold text-[#1A1A1A]">
                     Email Delivery Template
                   </h2>
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-[#737373]">
                     Sent via your connected Gmail account on invoice creation
                   </p>
                 </div>
               </div>
-              <span className="text-[10px] px-2.5 py-1 rounded-full font-mono bg-zinc-100 dark:bg-zinc-800 text-zinc-400">
+              <span className="text-[10px] px-2.5 py-1 rounded-full font-mono bg-[#FAFAFA] text-[#737373] border border-neutral-200/60">
                 Gmail Connector
               </span>
             </div>
 
             {/* Placeholders helper bar */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5 text-blue-500" />
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-[#1A1A1A] flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-[#0F766E]" />
                 <span>Available Dynamic Placeholders (Click to Insert)</span>
               </label>
               <div className="flex flex-wrap gap-1.5">
@@ -248,7 +249,7 @@ export default function SettingsPage() {
                     key={p.tag}
                     type="button"
                     onClick={() => handleInsertTag(p.tag, "body")}
-                    className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition"
+                    className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-[#FAFAFA] hover:bg-[#F0FDFA] hover:text-[#0F766E] border border-neutral-200/80 text-[#4A4A4A] transition"
                     title={`Insert ${p.label}`}
                   >
                     {p.tag}
@@ -259,57 +260,57 @@ export default function SettingsPage() {
 
             {/* Subject Input */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+              <label className="text-xs font-semibold text-[#1A1A1A]">
                 Email Subject
               </label>
               <input
                 type="text"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
-                className="w-full px-4 py-2.5 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-neutral-200 bg-white text-[#1A1A1A] placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E] transition shadow-2xs"
                 placeholder="Invoice {invoice_id} from {freelancer_name}"
               />
             </div>
 
             {/* Body Input */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+              <label className="text-xs font-semibold text-[#1A1A1A]">
                 Email Message Body
               </label>
               <textarea
                 rows={9}
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
-                className="w-full px-4 py-3 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs leading-relaxed"
+                className="w-full px-3.5 py-3 text-xs rounded-xl border border-neutral-200 bg-white text-[#1A1A1A] placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E] font-mono leading-relaxed transition shadow-2xs"
                 placeholder="Write your custom invoice delivery message..."
               />
             </div>
           </div>
 
           {/* 2. REMINDER SCHEDULE CONFIGURATION */}
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 sm:p-7 shadow-sm space-y-6">
-            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-4">
+          <div className="bg-white border border-neutral-100 rounded-3xl p-6 sm:p-8 shadow-card space-y-6">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-4">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-500">
+                <div className="p-2.5 rounded-xl bg-[#F0FDFA] border border-[#CCFBF1] text-[#0F766E]">
                   <Calendar className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                  <h2 className="text-base font-bold text-[#1A1A1A]">
                     Automated Calendar Reminders
                   </h2>
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-[#737373]">
                     Scheduled via Fastn Google Calendar connector before invoice due date
                   </p>
                 </div>
               </div>
-              <span className="text-[10px] px-2.5 py-1 rounded-full font-mono bg-zinc-100 dark:bg-zinc-800 text-zinc-400">
+              <span className="text-[10px] px-2.5 py-1 rounded-full font-mono bg-[#FAFAFA] text-[#737373] border border-neutral-200/60">
                 Google Calendar
               </span>
             </div>
 
             {/* Presets Grid */}
             <div className="space-y-2">
-              <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+              <label className="text-xs font-semibold text-[#1A1A1A]">
                 Reminder Triggers (Days Prior to Due Date)
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
@@ -322,12 +323,12 @@ export default function SettingsPage() {
                       onClick={() => handleToggleReminderDay(preset.days)}
                       className={`p-3 rounded-2xl border text-left transition flex items-center justify-between ${
                         isActive
-                          ? "bg-blue-50 dark:bg-blue-950/40 border-blue-500/40 text-blue-900 dark:text-blue-100 font-semibold"
-                          : "bg-zinc-50 dark:bg-zinc-800/40 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300"
+                          ? "bg-[#F0FDFA] border-[#CCFBF1] text-[#0F766E] font-semibold"
+                          : "bg-[#FAFAFA] border-neutral-200 text-[#4A4A4A] hover:border-neutral-300"
                       }`}
                     >
                       <span className="text-xs">{preset.label}</span>
-                      {isActive && <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />}
+                      {isActive && <Check className="w-4 h-4 text-[#0F766E]" />}
                     </button>
                   );
                 })}
@@ -343,27 +344,27 @@ export default function SettingsPage() {
                 value={customDayInput}
                 onChange={(e) => setCustomDayInput(e.target.value)}
                 placeholder="Add custom days (e.g. 10)"
-                className="w-48 px-3.5 py-2 text-xs rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-48 px-3.5 py-2 text-xs rounded-xl border border-neutral-200 bg-white text-[#1A1A1A] placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E] shadow-2xs"
               />
               <button
                 type="submit"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-xs font-semibold text-zinc-800 dark:text-zinc-200 transition"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-neutral-50 text-[#1A1A1A] border border-neutral-200/90 text-xs font-semibold transition shadow-2xs"
               >
                 <Plus className="w-3.5 h-3.5" /> Add Reminder
               </button>
             </form>
 
             {/* Active Schedule Summary */}
-            <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 text-zinc-500">
-                <Clock className="w-4 h-4 text-blue-500" />
+            <div className="p-3.5 rounded-2xl bg-[#FAFAFA] border border-neutral-200/70 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 text-[#737373]">
+                <Clock className="w-4 h-4 text-[#0F766E]" />
                 <span>Active Triggers:</span>
               </div>
-              <div className="flex flex-wrap gap-1">
+              <div className="flex flex-wrap gap-1.5">
                 {reminderDays.map((day) => (
                   <span
                     key={day}
-                    className="px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-mono text-[11px]"
+                    className="px-2.5 py-0.5 rounded-md bg-[#F0FDFA] border border-[#CCFBF1] text-[#0F766E] font-mono text-[11px] font-semibold"
                   >
                     {day === 0 ? "Due Date (0d)" : `${day}d before`}
                   </span>
@@ -376,50 +377,50 @@ export default function SettingsPage() {
         {/* RIGHT COLUMN: Live Preview & Sensible Defaults Callout */}
         <div className="lg:col-span-5 space-y-6">
           {/* Sensible Defaults Info Callout */}
-          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-3xl p-6 text-xs text-emerald-800 dark:text-emerald-300 space-y-2">
-            <div className="flex items-center gap-2 font-bold text-sm">
-              <Sparkles className="w-4 h-4 text-emerald-500" /> Sensible Defaults Out of the Box
+          <div className="bg-[#F0FDFA] border border-[#CCFBF1] rounded-3xl p-6 text-xs text-[#0F766E] space-y-2">
+            <div className="flex items-center gap-2 font-bold text-sm text-[#0F766E]">
+              <Sparkles className="w-4 h-4 text-[#0F766E]" /> Sensible Defaults Out of the Box
             </div>
-            <p className="leading-relaxed">
+            <p className="leading-relaxed text-[#4A4A4A]">
               If a new freelancer skips custom configuration, Fastn automatically provisions:
             </p>
-            <ul className="list-disc list-inside space-y-1 font-mono text-[11px] opacity-90">
-              <li>Clean, professional invoice delivery email</li>
+            <ul className="list-disc list-inside space-y-1 font-mono text-[11px] text-[#0F766E] opacity-90">
+              <li>Clean, professional invoice delivery email in PKR</li>
               <li>Dual reminders (3 days before & day-of due date)</li>
               <li>Google Sheets row append with status=pending</li>
             </ul>
           </div>
 
           {/* REAL-TIME LIVE EMAIL PREVIEW */}
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
-              <div className="flex items-center gap-2 text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                <Eye className="w-4 h-4 text-blue-500" /> Live Email Client Preview
+          <div className="bg-white border border-neutral-100 rounded-3xl p-6 sm:p-7 shadow-card space-y-4">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-[#1A1A1A]">
+                <Eye className="w-4 h-4 text-[#0F766E]" /> Live Email Client Preview
               </div>
-              <span className="text-[10px] font-mono text-zinc-400">Sample Client View</span>
+              <span className="text-[10px] font-mono text-[#737373]">Sample Client View</span>
             </div>
 
             {/* Email Shell */}
-            <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/50 p-4 space-y-3 font-sans text-xs">
-              <div className="space-y-1 border-b border-zinc-200/60 dark:border-zinc-800/60 pb-3 text-[11px]">
-                <div className="flex justify-between text-zinc-500">
-                  <span className="font-semibold text-zinc-700 dark:text-zinc-300">From:</span>
+            <div className="rounded-2xl border border-neutral-200/80 bg-[#FAFAFA] p-4 space-y-3 font-sans text-xs">
+              <div className="space-y-1.5 border-b border-neutral-200/80 pb-3 text-[11px]">
+                <div className="flex justify-between text-[#737373]">
+                  <span className="font-semibold text-[#1A1A1A]">From:</span>
                   <span>{tenant.name} &lt;{tenant.email}&gt;</span>
                 </div>
-                <div className="flex justify-between text-zinc-500">
-                  <span className="font-semibold text-zinc-700 dark:text-zinc-300">To:</span>
+                <div className="flex justify-between text-[#737373]">
+                  <span className="font-semibold text-[#1A1A1A]">To:</span>
                   <span>Acme FinTech &lt;client@acmecorp.com&gt;</span>
                 </div>
-                <div className="flex justify-between text-zinc-500 pt-1">
-                  <span className="font-semibold text-zinc-700 dark:text-zinc-300">Subject:</span>
-                  <span className="font-bold text-zinc-900 dark:text-zinc-100">
+                <div className="flex justify-between text-[#737373] pt-1">
+                  <span className="font-semibold text-[#1A1A1A]">Subject:</span>
+                  <span className="font-bold text-[#1A1A1A]">
                     {renderPreview(subject)}
                   </span>
                 </div>
               </div>
 
               {/* Rendered Body */}
-              <div className="text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed font-sans text-xs pt-1">
+              <div className="text-[#4A4A4A] whitespace-pre-wrap leading-relaxed font-sans text-xs pt-1">
                 {renderPreview(body)}
               </div>
             </div>

@@ -3,7 +3,7 @@
  * 
  * Verifies:
  * 1. Schedule Trigger (Hourly): Reads pending invoices from tenant's Google Sheet,
- *    verifies via Stripe, updates row to "paid", sends Gmail receipt, notifies Slack.
+ *    verifies via JazzCash, updates row to "paid", sends Gmail receipt, notifies Slack.
  * 2. Webhook Trigger ("payment.webhook"): Handles real-time payment callback (e.g. JazzCash IPN),
  *    updates row to "paid", sends Gmail receipt, notifies Slack.
  * 3. Scope Isolation: Every check is scoped to invoice's tenant_id with zero cross-tenant reads.
@@ -17,13 +17,13 @@ async function runPaymentCheckTests() {
   console.log("=================================================================\n");
 
   // ---------------------------------------------------------------------------
-  // TEST CASE 1: Scheduled Trigger (Hourly) for Tenant A (Sarah Chen) via Stripe
+  // TEST CASE 1: Scheduled Trigger (Hourly) for Tenant A (Sarah Chen) via JazzCash
   // ---------------------------------------------------------------------------
   console.log("▶ [1/2] Executing Scheduled Check for Tenant A (Sarah Chen)...");
   const payloadScheduleA: PaymentCheckPayload = {
     tenant_id: "tenant-sarah-chen",
     trigger_type: "schedule",
-    payment_source: "stripe",
+    payment_source: "jazzcash",
   };
 
   const resScheduleA = await executePaymentCheckWorkflow(payloadScheduleA);
@@ -79,7 +79,7 @@ async function runPaymentCheckTests() {
   console.log("=================================================================");
   if (isIsolated) {
     console.log("🎉 PASS: Zero cross-tenant data leakage!");
-    console.log("• Tenant A (Sarah Chen) reconciled only Sarah's Google Sheet and Stripe connector.");
+    console.log("• Tenant A (Sarah Chen) reconciled only Sarah's Google Sheet and JazzCash connector.");
     console.log("• Tenant B (Alex Rivera) reconciled only Alex's Google Sheet and JazzCash connector.");
     console.log("• All lookups strictly scoped to the invoice's tenant_id.");
   } else {

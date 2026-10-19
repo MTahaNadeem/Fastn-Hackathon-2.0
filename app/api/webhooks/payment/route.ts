@@ -4,7 +4,7 @@ import { executePaymentCheckWorkflow, PaymentCheckPayload } from "@/lib/fastn";
 /**
  * Webhook Endpoint: payment.webhook
  * 
- * Fired when Stripe or JazzCash dispatches an IPN/payment webhook event.
+ * Fired when JazzCash dispatches an IPN/payment webhook event.
  * Reconciles the invoice under the tenant's isolated namespace,
  * updates Google Sheet status to "paid", sends Gmail receipt, and notifies Slack.
  */

@@ -6,12 +6,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const tenant_id =
       body.tenant_id ||
+      body.endOrgId ||
       request.headers.get("x-end-org-id") ||
       request.headers.get("x-fastn-space-tenantid") ||
+      request.headers.get("x-org-id") ||
       "tenant-sarah-chen";
-    const connector_id = body.connector_id || undefined;
+    const connector_id = body.connector_id || body.connector || undefined;
+    const user_email = body.user_email || body.email || undefined;
 
-    const result = await generateFastnEmbedToken(tenant_id, connector_id);
+    const result = await generateFastnEmbedToken(tenant_id, connector_id, user_email);
     return NextResponse.json(result);
   } catch (error: any) {
     return NextResponse.json(

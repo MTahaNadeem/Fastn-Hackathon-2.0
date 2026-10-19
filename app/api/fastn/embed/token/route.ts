@@ -12,7 +12,9 @@ export async function POST(request: NextRequest) {
       "tenant-sarah-chen";
     const connector_id = body.connector_id || body.connector || undefined;
 
-    const result = await generateFastnEmbedToken(tenant_id, connector_id);
+    const user_email = body.user_email || body.email || undefined;
+
+    const result = await generateFastnEmbedToken(tenant_id, connector_id, user_email);
     return NextResponse.json(result);
   } catch (error: any) {
     return NextResponse.json(

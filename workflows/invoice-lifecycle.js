@@ -80,9 +80,13 @@ export default async function (ctx) {
     // -------------------------------------------------------------------------
     // Step 2: Send Email via Gmail Connector (using tenant's connected Gmail)
     // -------------------------------------------------------------------------
+    const formattedAmount = typeof amount === "number"
+      ? "Rs. " + amount.toLocaleString("en-PK")
+      : "Rs. " + (amount || "0");
+
     const defaultBody =
       `Hi,\n\nPlease find attached your invoice ${invoice_id} from ${freelancer_name || "Freelancer"}.\n\n` +
-      `Amount Due: $${amount}\n` +
+      `Amount Due: ${formattedAmount}\n` +
       `Due Date: ${due_date}\n\n` +
       `Thank you for your business!`;
 
@@ -90,7 +94,7 @@ export default async function (ctx) {
       ? email_template
           .replace(/{freelancer_name}/g, freelancer_name || "Freelancer")
           .replace(/{invoice_id}/g, invoice_id)
-          .replace(/{amount}/g, String(amount))
+          .replace(/{amount}/g, formattedAmount)
           .replace(/{due_date}/g, due_date)
       : defaultBody;
 
@@ -109,7 +113,7 @@ export default async function (ctx) {
     stepResults.calendar = await retryWithBackoff("Google Calendar Event Creation", async () => {
       const res = await tenantScopedFastn.connector.googleCalendar.createEvent({
         summary: `Invoice due: ${client_email}`,
-        description: `Invoice ${invoice_id} for $${amount} is due today from ${client_email}. Freelancer: ${freelancer_name || "N/A"}. (Tenant: ${tenant_id})`,
+        description: `Invoice ${invoice_id} for ${formattedAmount} is due today from ${client_email}. Freelancer: ${freelancer_name || "N/A"}. (Tenant: ${tenant_id})`,
         startDate: `${due_date}T09:00:00Z`,
         endDate: `${due_date}T10:00:00Z`,
         reminders: {
@@ -133,7 +137,7 @@ export default async function (ctx) {
         values: [
           invoice_id,
           client_email,
-          amount,
+          formattedAmount,
           due_date,
           "pending",
         ],
@@ -147,7 +151,7 @@ export default async function (ctx) {
     stepResults.slack = await retryWithBackoff("Slack Message Notification", async () => {
       const res = await tenantScopedFastn.connector.slack.sendMessage({
         channel: slack_channel || "#invoices",
-        text: `Invoice ${invoice_id} sent to ${client_email} for ${amount}, due ${due_date}`,
+        text: `Invoice ${invoice_id} sent to ${client_email} for ${formattedAmount}, due ${due_date}`,
       });
       return res.output || res;
     });
@@ -157,6 +161,7 @@ export default async function (ctx) {
       workflow: "invoice-lifecycle",
       tenant_id,
       invoice_id,
+      currency: "PKR",
       stepResults,
       timestamp: new Date().toISOString(),
     };

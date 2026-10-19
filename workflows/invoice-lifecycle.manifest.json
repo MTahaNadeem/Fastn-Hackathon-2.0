@@ -1,4 +1,5 @@
 {
+  "id": "wf_0f79fb0c88ac",
   "name": "invoice-lifecycle",
   "slug": "invoice-lifecycle",
   "description": "Multi-tenant freelancer invoice lifecycle automation: dispatches client invoice via Gmail, schedules Google Calendar due date reminders, appends tracking rows to Google Sheets, and notifies Slack with isolated per-tenant credentials and exponential backoff retry.",

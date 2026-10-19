@@ -3,12 +3,12 @@
  * 
  * Triggers:
  * 1. Schedule: Every 1 hour (cron: "0 * * * *")
- * 2. Webhook: "payment.webhook" from Stripe or JazzCash
+ * 2. Webhook: "payment.webhook" from JazzCash
  * 
  * Flow:
  * 1. Resolves tenant_id from webhook payload or schedule context.
  * 2. Connects to tenant-isolated Google Sheet to fetch rows with status="pending".
- * 3. Inquires payment status via Stripe (or custom JazzCash connector).
+ * 3. Inquires payment status via custom JazzCash connector.
  * 4. If paid:
  *    - Updates Google Sheet row to status="paid"
  *    - Sends "Invoice Paid" confirmation email to client via Gmail
@@ -32,7 +32,6 @@ export default async function (ctx) {
   const tenantScopedFastn = new Fastn({
     connectors: {
       googleSheets: { orgId: "managed" },
-      stripe: { orgId: "managed" },
       jazzcash: { orgId: "custom" },
       gmail: { orgId: "managed" },
       slack: { orgId: "managed" },
@@ -60,36 +59,27 @@ export default async function (ctx) {
 
   const processedInvoices = [];
 
-  // Helper to check payment status across Stripe or JazzCash
-  async function checkPaymentStatus(invoiceId, paymentSource, externalRef) {
-    if (paymentSource === "jazzcash") {
-      // Inquire transaction status via custom JazzCash connector
-      const jazzRes = await withRetry(`JazzCash Inquire [${invoiceId}]`, async () => {
-        const res = await tenantScopedFastn.connector.jazzcash.inquireTransaction({
-          pp_TxnRefNo: externalRef || invoiceId,
-          pp_MerchantID: input.jazzcash_merchant_id || "default_merchant",
-        });
-        return res.output || res;
+  // Helper to check payment status via custom JazzCash connector
+  async function checkPaymentStatus(invoiceId, paymentSource = "jazzcash", externalRef) {
+    // Inquire transaction status via custom JazzCash connector
+    const jazzRes = await withRetry(`JazzCash Inquire [${invoiceId}]`, async () => {
+      const res = await tenantScopedFastn.connector.jazzcash.inquireTransaction({
+        pp_TxnRefNo: externalRef || invoiceId,
+        pp_MerchantID: input.jazzcash_merchant_id || "default_merchant",
       });
-      const isPaid = jazzRes.pp_ResponseCode === "000" || jazzRes.status === "paid" || jazzRes.paid === true;
-      return { isPaid, source: "jazzcash", details: jazzRes };
-    } else {
-      // Default: Inquire via Stripe connector
-      const stripeRes = await withRetry(`Stripe Retrieve Status [${invoiceId}]`, async () => {
-        const res = await tenantScopedFastn.connector.stripe.getPaymentStatus({
-          invoiceId: invoiceId,
-          sessionId: externalRef,
-        });
-        return res.output || res;
-      });
-      const isPaid = stripeRes.status === "paid" || stripeRes.payment_status === "paid" || stripeRes.paid === true;
-      return { isPaid, source: "stripe", details: stripeRes };
-    }
+      return res.output || res;
+    });
+    const isPaid = jazzRes.pp_ResponseCode === "000" || jazzRes.status === "paid" || jazzRes.paid === true;
+    return { isPaid, source: "jazzcash", details: jazzRes };
   }
 
   // Helper to perform paid actions: Sheet update, Gmail confirmation, Slack alert
   async function handlePaidInvoice(invoice) {
     const { invoice_id, client_email, amount, due_date, rowIndex } = invoice;
+
+    const formattedAmount = typeof amount === "number"
+      ? "Rs. " + amount.toLocaleString("en-PK")
+      : "Rs. " + (amount || "0");
 
     // 1. Update Google Sheet row status to "paid"
     await withRetry(`Google Sheets Update [${invoice_id}]`, async () => {
@@ -97,7 +87,7 @@ export default async function (ctx) {
         spreadsheetId: input.spreadsheet_id || "default",
         sheetName: "Invoices",
         rowNumber: rowIndex || 2,
-        values: [invoice_id, client_email, amount, due_date, "paid"],
+        values: [invoice_id, client_email, formattedAmount, due_date, "paid"],
       });
       return res.output || res;
     });
@@ -107,7 +97,7 @@ export default async function (ctx) {
       const subject = `Payment Confirmed: Invoice ${invoice_id}`;
       const body =
         `Dear Customer,\n\n` +
-        `We have received your payment of $${amount} for invoice ${invoice_id}.\n` +
+        `We have received your payment of ${formattedAmount} for invoice ${invoice_id}.\n` +
         `Status: PAID\n\n` +
         `Thank you for your prompt payment!`;
 
@@ -120,7 +110,7 @@ export default async function (ctx) {
     });
 
     // 3. Notify tenant's Slack channel
-    const slackMessage = `🎉 *Payment Confirmed!* Invoice \`${invoice_id}\` for *$${amount}* paid by \`${client_email}\`.`;
+    const slackMessage = `🎉 *Payment Confirmed!* Invoice \`${invoice_id}\` for *${formattedAmount}* paid by \`${client_email}\`.`;
     await withRetry(`Slack Alert [${invoice_id}]`, async () => {
       const res = await tenantScopedFastn.connector.slack.sendMessage({
         channel: input.slack_channel || "#invoices",
@@ -171,7 +161,7 @@ export default async function (ctx) {
         processedInvoices.push({
           invoice_id,
           status: "pending_unpaid",
-          checkedVia: payment_source || "stripe",
+          checkedVia: payment_source || "jazzcash",
         });
       }
 
@@ -197,7 +187,7 @@ export default async function (ctx) {
           : [row.invoice_id, row.client_email, row.amount, row.due_date, row.status];
 
         if (currentStatus === "pending") {
-          const check = await checkPaymentStatus(invId, input.payment_source || "stripe");
+          const check = await checkPaymentStatus(invId, input.payment_source || "jazzcash");
           if (check.isPaid) {
             const outcome = await handlePaidInvoice({
               invoice_id: invId,
@@ -223,6 +213,7 @@ export default async function (ctx) {
       workflow: "payment-check",
       triggerType,
       tenant_id,
+      currency: "PKR",
       invoicesChecked: processedInvoices.length,
       processedInvoices,
       timestamp: new Date().toISOString(),

@@ -6,7 +6,7 @@
  * which maps directly to Fastn's `tenantId` / `x-fastn-space-tenantid` header.
  * 
  * This ensures that credentials, OAuth tokens, and configurations for accounting
- * and payment platforms (QuickBooks, Stripe, PayPal, Xero, Slack) remain completely
+ * and payment platforms (QuickBooks, JazzCash, PayPal, Xero, Slack) remain completely
  * siloed per freelancer.
  */
 
@@ -32,10 +32,10 @@ export const DEFAULT_EMAIL_TEMPLATE: EmailTemplateConfig = {
   subject: "Invoice {invoice_id} from {freelancer_name}",
   body: `Hi there,
 
-Please find attached invoice {invoice_id} for {amount} {currency} from {freelancer_name} ({business_name}).
+Please find attached invoice {invoice_id} for {amount} from {freelancer_name} ({business_name}).
 
 Due Date: {due_date}
-Amount Due: {amount} {currency}
+Amount Due: {amount}
 
 Thank you for your business! Please reach out if you have any questions.
 
@@ -68,9 +68,9 @@ export const DEFAULT_TENANTS: Tenant[] = [
     businessName: "Chen Design Studio",
     email: "sarah@chendesign.io",
     fastnNamespace: "freelancer-sarah-chen",
-    currency: "USD",
+    currency: "PKR",
     createdAt: "2026-01-15T09:00:00Z",
-    connectedConnectors: ["gmail", "google_calendar", "google_sheets", "slack", "stripe"],
+    connectedConnectors: ["google_calendar", "google_sheets", "slack", "jazzcash"],
     settings: {
       autoSyncAccounting: true,
       autoNotifySlack: true,
@@ -79,10 +79,10 @@ export const DEFAULT_TENANTS: Tenant[] = [
         subject: "Invoice {invoice_id} from Chen Design Studio",
         body: `Dear Client,
 
-Please find your design invoice {invoice_id} for {amount} {currency} from Sarah Chen (Chen Design Studio).
+Please find your design invoice {invoice_id} for {amount} from Sarah Chen (Chen Design Studio).
 
 Due Date: {due_date}
-Amount: {amount} {currency}
+Amount Due: {amount}
 
 We appreciate your partnership!
 
@@ -102,7 +102,7 @@ Chen Design Studio`,
     businessName: "Rivera Web Solutions",
     email: "alex@riveradev.com",
     fastnNamespace: "freelancer-alex-rivera",
-    currency: "USD",
+    currency: "PKR",
     createdAt: "2026-02-01T11:30:00Z",
     connectedConnectors: ["jazzcash", "google_sheets"],
     settings: {
@@ -113,9 +113,9 @@ Chen Design Studio`,
         subject: "Invoice {invoice_id} from Rivera Web Solutions",
         body: `Hello,
 
-Your invoice {invoice_id} for {amount} {currency} is now ready for review.
+Your invoice {invoice_id} for {amount} is now ready for review.
 
-Amount Due: {amount} {currency}
+Amount Due: {amount}
 Due Date: {due_date}
 
 Thank you for choosing Rivera Web Solutions!
@@ -134,7 +134,7 @@ Alex Rivera`,
     businessName: "Patel Branding & Copy",
     email: "maya@patelbranding.com",
     fastnNamespace: "freelancer-maya-patel",
-    currency: "USD",
+    currency: "PKR",
     createdAt: "2026-02-20T14:15:00Z",
     connectedConnectors: [],
     settings: {
@@ -259,7 +259,7 @@ export function createTenant(input: {
     businessName: input.businessName,
     email: input.email,
     fastnNamespace,
-    currency: input.currency || "USD",
+    currency: input.currency || "PKR",
     createdAt: new Date().toISOString(),
     connectedConnectors: [],
     settings: {

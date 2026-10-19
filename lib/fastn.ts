@@ -4,7 +4,7 @@
  * Provides unified helper functions for interacting with the Fastn platform:
  * - Dynamic Fastn client initialization scoped to each freelancer's tenant namespace
  * - Connector status query and marketplace discovery
- * - Invoice synchronization orchestration (QuickBooks, Stripe, Xero, Slack)
+ * - Invoice synchronization orchestration (QuickBooks, JazzCash, Xero, Slack)
  * - Safe SSR / Node execution polyfill
  */
 
@@ -19,6 +19,9 @@ if (typeof window === "undefined") {
     };
   }
 }
+
+import { formatPKR, DEFAULT_CURRENCY } from "./currency";
+export { formatPKR, DEFAULT_CURRENCY };
 
 export interface FastnConnectorMetadata {
   id: string;
@@ -86,19 +89,6 @@ export const CONNECTOR_CATALOG: FastnConnectorMetadata[] = [
       { key: "webhookUrl", label: "Incoming Webhook / Channel", type: "text", placeholder: "https://hooks.slack.com/services/...", required: true },
     ],
     supportedActions: ["post_message", "send_channel_alert"],
-  },
-  {
-    id: "stripe",
-    name: "Stripe",
-    category: "payments",
-    description: "Accept credit cards, Apple Pay, Google Pay, and bank debits with hosted checkout links and real-time webhook reconciliation.",
-    icon: "💳",
-    authType: "apiKey",
-    requiredFields: [
-      { key: "publishableKey", label: "Publishable Key", type: "text", placeholder: "pk_live_...", required: true },
-      { key: "secretKey", label: "Secret Key", type: "password", placeholder: "sk_live_...", required: true },
-    ],
-    supportedActions: ["create_payment_link", "check_payout_status", "refund_charge"],
   },
   {
     id: "jazzcash",
@@ -214,7 +204,14 @@ export function isFastnConfigured(): boolean {
     process.env.FASTN_WORKSPACE_ID ||
     process.env.NEXT_PUBLIC_FASTN_WORKSPACE_ID ||
     "";
-  return Boolean(apiKey && workspaceId && apiKey !== "your_fastn_api_key_here");
+  return Boolean(
+    apiKey &&
+    workspaceId &&
+    apiKey !== "your_fastn_api_key_here" &&
+    !apiKey.startsWith("sample_") &&
+    !apiKey.startsWith("demo_") &&
+    apiKey.length > 15
+  );
 }
 
 /**
@@ -298,12 +295,6 @@ const TENANT_CONNECTION_STORE: Record<
   >
 > = {
   "tenant-sarah-chen": {
-    gmail: {
-      connected: true,
-      connectionId: "ucl:org:live:gmail:auth:tenant-sarah-chen",
-      lastSyncedAt: new Date().toISOString(),
-      accountEmail: "sarah@chendesign.io",
-    },
     google_calendar: {
       connected: true,
       connectionId: "ucl:org:live:calendar:auth:tenant-sarah-chen",
@@ -319,11 +310,11 @@ const TENANT_CONNECTION_STORE: Record<
       connectionId: "ucl:org:live:slack:auth:tenant-sarah-chen",
       lastSyncedAt: new Date().toISOString(),
     },
-    stripe: {
+    jazzcash: {
       connected: true,
-      connectionId: "ucl:org:live:stripe:auth:tenant-sarah-chen",
+      connectionId: "ucl:org:live:jazzcash:auth:tenant-sarah-chen",
       lastSyncedAt: new Date().toISOString(),
-      accountEmail: "acct_1N923kSarah",
+      accountEmail: "merchant_03009876543",
     },
   },
   "tenant-alex-rivera": {
@@ -346,7 +337,6 @@ export const CORE_CONNECTOR_IDS = [
   "google_calendar",
   "google_sheets",
   "slack",
-  "stripe",
   "jazzcash",
 ] as const;
 
@@ -396,23 +386,42 @@ export function setTenantConnectionStatus(
  * Generate a short-lived Fastn Embed Token for customer/tenant scoped connection flows.
  * Per Fastn Embed Docs: POST /api/v1/embed/token with endOrgId: tenantId
  */
-export async function generateFastnEmbedToken(tenantId: string, connectorId?: string) {
+export async function generateFastnEmbedToken(
+  tenantId: string,
+  connectorId?: string,
+  userEmail?: string
+) {
   const apiKey = process.env.FASTN_API_KEY || "";
   const workspaceId = process.env.FASTN_WORKSPACE_ID || "";
-  const fastnHost = process.env.FASTN_HOST || "https://live.gcp.fastn.ai";
+  const fastnHost =
+    process.env.FASTN_HOST ||
+    process.env.FASTN_BASE_URL?.replace(/\/api\/?$/, "") ||
+    "https://live.fastn.ai";
+  const idvSecret = process.env.FASTN_IDV_SECRET || apiKey;
+  const userId = userEmail || `${tenantId}@invoicing.app`;
 
-  // If live credentials exist, attempt to mint token from Fastn Embed API
+  // If live credentials exist, mint token from Fastn Embed API with Identity Verification (IDV)
   if (isFastnConfigured()) {
     try {
+      const crypto = await import("crypto");
+      const identityHmac = crypto
+        .createHmac("sha256", idvSecret)
+        .update(`${tenantId}\n${userId}`)
+        .digest("hex");
+
       const resp = await fetch(`${fastnHost}/api/v1/embed/token`, {
         method: "POST",
         headers: {
+          "x-api-key": apiKey,
           Authorization: `Bearer ${apiKey}`,
-          "x-org-id": workspaceId,
+          "x-org-id": tenantId,
+          "x-user-id": userId,
+          "x-identity-hmac": identityHmac,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           endOrgId: tenantId,
+          connectorId: connectorId || undefined,
           role: "end_user",
         }),
       });
@@ -421,7 +430,7 @@ export async function generateFastnEmbedToken(tenantId: string, connectorId?: st
         const data = await resp.json();
         const token = data.token;
         const embedUrl = `${fastnHost}/api/v1/embed/iframe?token=${token}${
-          connectorId ? `&connector=${connectorId}` : ""
+          connectorId ? `&connector=${encodeURIComponent(connectorId)}` : ""
         }`;
         return {
           success: true,
@@ -432,13 +441,15 @@ export async function generateFastnEmbedToken(tenantId: string, connectorId?: st
           embedUrl,
           isSimulation: false,
         };
+      } else {
+        console.warn(`Live Fastn embed token API returned ${resp.status}:`, await resp.text().catch(() => ""));
       }
     } catch (err) {
       console.warn("Live Fastn embed token generation error:", err);
     }
   }
 
-  // Fallback to local sandbox token and self-hosted embed widget iframe
+  // Fallback to local sandbox token and self-hosted embed widget iframe scoped to tenant
   const mockToken = `emb_dev_${tenantId}_${connectorId || "all"}_${Date.now().toString(36)}`;
   const embedUrl = `/api/fastn/embed/widget?token=${mockToken}&tenant_id=${encodeURIComponent(
     tenantId
@@ -470,7 +481,7 @@ export interface FastnSyncPayload {
     dueDate: string;
     items: Array<{ description: string; quantity: number; unitPrice: number; total: number }>;
   };
-  connectors: string[]; // e.g. ['quickbooks', 'stripe', 'slack']
+  connectors: string[]; // e.g. ['quickbooks', 'jazzcash', 'slack']
 }
 
 export interface FastnSyncResult {
@@ -502,18 +513,6 @@ export async function syncInvoiceViaFastn(
           actionTaken: "QuickBooks: Invoice Created in Ledger",
           externalReference: `QBO-INV-${Math.floor(100000 + Math.random() * 900000)}`,
           message: `Recorded invoice ${payload.invoice.invoiceNumber} ($${payload.invoice.amount}) in QuickBooks for tenant namespace [${payload.tenantNamespace}].`,
-          timestamp: now,
-        });
-        break;
-
-      case "stripe":
-        results.push({
-          connectorId,
-          connectorName: name,
-          status: "success",
-          actionTaken: "Stripe: Hosted Checkout Session Created",
-          externalReference: `cs_test_${Math.random().toString(36).substring(2, 12)}`,
-          message: `Created payment link for ${payload.invoice.clientEmail} connected to tenant account.`,
           timestamp: now,
         });
         break;
@@ -569,6 +568,7 @@ export interface InvoiceLifecyclePayload {
   invoice_id: string;
   client_email: string;
   amount: number;
+  currency?: string;
   due_date: string;
   freelancer_name: string;
   email_subject?: string;
@@ -583,6 +583,8 @@ export interface InvoiceLifecycleResult {
   workflow: string;
   tenant_id: string;
   invoice_id: string;
+  currency: string;
+  amountFormatted: string;
   steps: {
     gmail: { status: "success" | "failed"; detail: string; attempts: number };
     calendar: { status: "success" | "failed"; detail: string; attempts: number };
@@ -613,6 +615,8 @@ export async function executeInvoiceLifecycleWorkflow(
     slack_channel,
   } = payload;
 
+  const currency = payload.currency || DEFAULT_CURRENCY;
+  const formattedAmount = formatPKR(amount);
   const now = new Date().toISOString();
   const steps: InvoiceLifecycleResult["steps"] = {
     gmail: { status: "success", detail: "", attempts: 1 },
@@ -646,20 +650,23 @@ export async function executeInvoiceLifecycleWorkflow(
 
   try {
     // -------------------------------------------------------------
-    // Step 2: Gmail Send Email (Tenant-Scoped)
+    // Step 2: Gmail Send Email (Tenant-Scoped, PKR formatted)
     // -------------------------------------------------------------
     const defaultSubject = `Invoice ${invoice_id} from ${freelancer_name || "Freelancer"}`;
     const emailSubject = payload.email_subject
       ? payload.email_subject
           .replace(/{freelancer_name}/g, freelancer_name || "Freelancer")
           .replace(/{invoice_id}/g, invoice_id)
-          .replace(/{amount}/g, String(amount))
+          .replace(/\${amount}/g, formattedAmount)
+          .replace(/{amount}\s*{currency}/g, formattedAmount)
+          .replace(/{amount}/g, formattedAmount)
+          .replace(/{currency}/g, currency)
           .replace(/{due_date}/g, due_date)
       : defaultSubject;
 
     const defaultBody =
       `Hi,\n\nPlease find your invoice ${invoice_id} from ${freelancer_name || "Freelancer"}.\n\n` +
-      `Amount Due: $${amount}\n` +
+      `Amount Due: ${formattedAmount}\n` +
       `Due Date: ${due_date}\n\n` +
       `Thank you for your business!`;
 
@@ -667,7 +674,10 @@ export async function executeInvoiceLifecycleWorkflow(
       ? email_template
           .replace(/{freelancer_name}/g, freelancer_name || "Freelancer")
           .replace(/{invoice_id}/g, invoice_id)
-          .replace(/{amount}/g, String(amount))
+          .replace(/\${amount}/g, formattedAmount)
+          .replace(/{amount}\s*{currency}/g, formattedAmount)
+          .replace(/{amount}/g, formattedAmount)
+          .replace(/{currency}/g, currency)
           .replace(/{due_date}/g, due_date)
       : defaultBody;
 
@@ -677,18 +687,21 @@ export async function executeInvoiceLifecycleWorkflow(
         messageId: `msg_${Math.random().toString(36).substring(2, 12)}`,
         to: client_email,
         subject: emailSubject,
+        body: emailBody,
+        amount: formattedAmount,
+        currency,
         resolvedTenant: tenant_id,
       };
     });
 
     steps.gmail = {
       status: "success",
-      detail: `Email dispatched to ${client_email} via tenant [${tenant_id}] Gmail account. Subject: "${emailSubject}"`,
+      detail: `Email dispatched to ${client_email} via tenant [${tenant_id}] Gmail account (${formattedAmount}). Subject: "${emailSubject}"`,
       attempts: gmailRes.attempts,
     };
 
     // -------------------------------------------------------------
-    // Step 3: Google Calendar Event (Tenant-Scoped, Configured Reminders)
+    // Step 3: Google Calendar Event (Tenant-Scoped, PKR formatted)
     // -------------------------------------------------------------
     const reminderDays = payload.reminder_days || [3, 0];
     const reminderLabels = reminderDays.map((d) =>
@@ -699,8 +712,12 @@ export async function executeInvoiceLifecycleWorkflow(
       // Calls Fastn Google Calendar connector partitioned to tenant_id
       return {
         eventId: `evt_${Math.random().toString(36).substring(2, 12)}`,
-        summary: `Invoice due: ${client_email}`,
+        summary: `Invoice due: ${client_email} (${formattedAmount})`,
+        description: `Invoice ${invoice_id} for ${client_email}. Amount: ${formattedAmount} (PKR). Due date: ${due_date}.`,
         dueDate: due_date,
+        currency,
+        amount,
+        amountFormatted: formattedAmount,
         reminders: reminderLabels,
         resolvedTenant: tenant_id,
       };
@@ -708,40 +725,43 @@ export async function executeInvoiceLifecycleWorkflow(
 
     steps.calendar = {
       status: "success",
-      detail: `Event created for ${due_date} with [${reminderLabels.join(
+      detail: `Event created for ${due_date} (${formattedAmount}) with [${reminderLabels.join(
         ", "
       )}] reminders via tenant [${tenant_id}] Calendar.`,
       attempts: calRes.attempts,
     };
 
     // -------------------------------------------------------------
-    // Step 4: Google Sheets Row Append (Tenant-Scoped)
+    // Step 4: Google Sheets Row Append (Tenant-Scoped, PKR formatted)
     // -------------------------------------------------------------
     const sheetRes = await runWithBackoff("Google Sheets Connector", async () => {
-      // Appends row [invoice_id, client_email, amount, due_date, "pending"]
+      // Appends row [invoice_id, client_email, formattedAmount, due_date, "pending"]
       return {
         spreadsheetId: spreadsheet_id || "default",
         rowNumber: Math.floor(10 + Math.random() * 90),
-        values: [invoice_id, client_email, amount, due_date, "pending"],
+        values: [invoice_id, client_email, formattedAmount, due_date, "pending"],
+        currency,
         resolvedTenant: tenant_id,
       };
     });
 
     steps.sheets = {
       status: "success",
-      detail: `Appended row [${invoice_id}, ${client_email}, $${amount}, ${due_date}, pending] to tenant [${tenant_id}] Google Sheet.`,
+      detail: `Appended row [${invoice_id}, ${client_email}, ${formattedAmount}, ${due_date}, pending] to tenant [${tenant_id}] Google Sheet.`,
       attempts: sheetRes.attempts,
     };
 
     // -------------------------------------------------------------
-    // Step 5: Slack Message Notification (Tenant-Scoped)
+    // Step 5: Slack Message Notification (Tenant-Scoped, PKR formatted)
     // -------------------------------------------------------------
-    const slackText = `Invoice ${invoice_id} sent to ${client_email} for ${amount}, due ${due_date}`;
+    const slackText = `Invoice ${invoice_id} sent to ${client_email} for ${formattedAmount}, due ${due_date}`;
     const slackRes = await runWithBackoff("Slack Connector", async () => {
       // Posts to tenant's connected Slack
       return {
         channel: slack_channel || "#invoices",
         messageText: slackText,
+        currency,
+        amountFormatted: formattedAmount,
         resolvedTenant: tenant_id,
       };
     });
@@ -757,6 +777,8 @@ export async function executeInvoiceLifecycleWorkflow(
       workflow: "invoice-lifecycle",
       tenant_id,
       invoice_id,
+      currency,
+      amountFormatted: formattedAmount,
       steps,
       timestamp: now,
     };
@@ -785,6 +807,8 @@ export async function executeInvoiceLifecycleWorkflow(
       workflow: "invoice-lifecycle",
       tenant_id,
       invoice_id,
+      currency,
+      amountFormatted: formattedAmount,
       steps,
       error: error.message || String(error),
       slackErrorAlertSent,
@@ -798,12 +822,13 @@ export async function executeInvoiceLifecycleWorkflow(
  */
 export interface PaymentCheckPayload {
   tenant_id: string;
+  currency?: string;
   trigger_type?: "schedule" | "webhook";
   invoice_id?: string;
   client_email?: string;
   amount?: number;
   due_date?: string;
-  payment_source?: "stripe" | "jazzcash";
+  payment_source?: "jazzcash";
   external_reference?: string;
   status?: "paid" | "pending" | "failed";
   spreadsheet_id?: string;
@@ -813,6 +838,7 @@ export interface PaymentCheckPayload {
 export interface PaymentCheckResult {
   success: boolean;
   workflow: string;
+  currency: string;
   triggerType: "schedule" | "webhook";
   tenant_id: string;
   invoicesChecked: number;
@@ -820,6 +846,8 @@ export interface PaymentCheckResult {
     invoice_id: string;
     client_email?: string;
     amount?: number;
+    currency?: string;
+    formattedAmount?: string;
     status: string;
     checkedVia?: string;
     sheetUpdated?: boolean;
@@ -834,7 +862,7 @@ export interface PaymentCheckResult {
 /**
  * Execute the "payment-check" workflow with strict per-tenant credential resolution,
  * dual-trigger support (hourly schedule vs payment.webhook), Google Sheet read/update,
- * Stripe/JazzCash status check, Gmail confirmation, and Slack celebrations.
+ * JazzCash status check, Gmail confirmation, and Slack celebrations.
  */
 export async function executePaymentCheckWorkflow(
   payload: PaymentCheckPayload
@@ -846,39 +874,46 @@ export async function executePaymentCheckWorkflow(
     client_email,
     amount,
     due_date,
-    payment_source = "stripe",
+    payment_source = "jazzcash",
     external_reference,
     status,
     spreadsheet_id,
     slack_channel,
   } = payload;
 
+  const currency = payload.currency || DEFAULT_CURRENCY;
   const now = new Date().toISOString();
   const processedInvoices: PaymentCheckResult["processedInvoices"] = [];
 
   try {
     if (trigger_type === "webhook") {
       // -------------------------------------------------------------
-      // Webhook Trigger: Instant payment event from Stripe or JazzCash
+      // Webhook Trigger: Instant payment event from JazzCash
       // -------------------------------------------------------------
       const invId = invoice_id || "INV-UNKNOWN";
       const isPaid = status === "paid" || true; // Webhook callback indicates success
+      const formattedAmount = formatPKR(amount || 0);
 
       if (isPaid) {
         processedInvoices.push({
           invoice_id: invId,
           client_email: client_email || "billing@client.com",
           amount: amount || 0,
+          currency,
+          formattedAmount,
           status: "paid",
           checkedVia: payment_source,
           sheetUpdated: true,
           emailSent: true,
           slackNotified: true,
-          details: `Tenant [${tenant_id}] received payment via ${payment_source}. Sheet row updated to paid, Gmail receipt sent to ${client_email}, Slack alerted.`,
+          details: `Tenant [${tenant_id}] received payment of ${formattedAmount} (${currency}) via ${payment_source}. Sheet row updated to status='paid', Gmail receipt sent to ${client_email}, Slack alerted.`,
         });
       } else {
         processedInvoices.push({
           invoice_id: invId,
+          currency,
+          amount: amount || 0,
+          formattedAmount,
           status: "pending",
           checkedVia: payment_source,
           details: `Invoice remains pending under tenant [${tenant_id}].`,
@@ -893,7 +928,8 @@ export async function executePaymentCheckWorkflow(
         {
           invoice_id: "INV-2026-002",
           client_email: "accounts@vortexhealth.co",
-          amount: 2800,
+          amount: 280000,
+          currency: "PKR",
           due_date: "2026-10-28",
           source: payment_source,
           verifiedPaid: true, // Simulated live payment detected
@@ -901,22 +937,28 @@ export async function executePaymentCheckWorkflow(
       ];
 
       for (const row of pendingRows) {
+        const rowFormatted = formatPKR(row.amount);
         if (row.verifiedPaid) {
           processedInvoices.push({
             invoice_id: row.invoice_id,
             client_email: row.client_email,
             amount: row.amount,
+            currency: row.currency || currency,
+            formattedAmount: rowFormatted,
             status: "paid",
             checkedVia: row.source,
             sheetUpdated: true,
             emailSent: true,
             slackNotified: true,
-            details: `Scheduled reconciliation for tenant [${tenant_id}]: Payment verified via ${row.source}. Updated Google Sheet to status="paid", sent Gmail receipt, and notified Slack.`,
+            details: `Scheduled reconciliation for tenant [${tenant_id}]: Payment of ${rowFormatted} (${currency}) verified via ${row.source}. Updated Google Sheet to status="paid", sent Gmail receipt, and notified Slack.`,
           });
         } else {
           processedInvoices.push({
             invoice_id: row.invoice_id,
             status: "pending",
+            amount: row.amount,
+            currency: row.currency || currency,
+            formattedAmount: rowFormatted,
             checkedVia: row.source,
           });
         }
@@ -928,6 +970,7 @@ export async function executePaymentCheckWorkflow(
       workflow: "payment-check",
       triggerType: trigger_type,
       tenant_id,
+      currency,
       invoicesChecked: processedInvoices.length,
       processedInvoices,
       timestamp: now,
@@ -939,6 +982,7 @@ export async function executePaymentCheckWorkflow(
       workflow: "payment-check",
       triggerType: trigger_type,
       tenant_id,
+      currency,
       invoicesChecked: 0,
       processedInvoices: [],
       error: error.message || String(error),

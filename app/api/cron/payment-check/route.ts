@@ -6,7 +6,7 @@ import { executePaymentCheckWorkflow } from "@/lib/fastn";
  * 
  * Triggers every 1 hour (cron: "0 * * * *")
  * Reads pending invoices from the tenant's Google Sheet,
- * verifies payment status with Stripe / JazzCash,
+ * verifies payment status with JazzCash,
  * updates the row to status="paid", sends a receipt via Gmail, and notifies Slack.
  */
 export async function GET(request: NextRequest) {
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const result = await executePaymentCheckWorkflow({
       tenant_id,
       trigger_type: "schedule",
-      payment_source: (searchParams.get("source") as any) || "stripe",
+      payment_source: (searchParams.get("source") as any) || "jazzcash",
     });
 
     return NextResponse.json(result);

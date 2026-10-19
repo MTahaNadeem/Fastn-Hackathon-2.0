@@ -4,7 +4,8 @@ import React, { useState } from "react";
 import { useTenantContext } from "@/lib/tenant-context";
 import { createInvoice, InvoiceItem } from "@/lib/invoices";
 import { syncInvoiceViaFastn, CONNECTOR_CATALOG } from "@/lib/fastn";
-import { Plus, Trash2, ArrowRight, Zap, CheckCircle2, ShieldCheck, Building, Calendar, DollarSign } from "lucide-react";
+import { formatPKR } from "@/lib/currency";
+import { Plus, Trash2, ArrowRight, Zap, CheckCircle2, ShieldCheck, Building, Calendar, Receipt } from "lucide-react";
 
 interface InvoiceFormProps {
   onSuccess?: (invoiceId: string) => void;
@@ -19,7 +20,7 @@ export default function InvoiceForm({ onSuccess }: InvoiceFormProps) {
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [issueDate, setIssueDate] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [notes, setNotes] = useState("Payment is due upon receipt. Direct bank or credit card via Stripe.");
+  const [notes, setNotes] = useState("Payment is due upon receipt via JazzCash or direct bank transfer.");
 
   React.useEffect(() => {
     const now = new Date();
@@ -35,8 +36,8 @@ export default function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       id: "item-1",
       description: "UX/UI Design Sprint & Prototype",
       quantity: 1,
-      unitPrice: 1500,
-      total: 1500,
+      unitPrice: 150000,
+      total: 150000,
     },
   ]);
 
@@ -44,8 +45,8 @@ export default function InvoiceForm({ onSuccess }: InvoiceFormProps) {
   const [discount, setDiscount] = useState<number>(0);
 
   // Fastn integration toggles for active tenant
-  const [syncQuickBooks, setSyncQuickBooks] = useState(tenant?.connectedConnectors.includes("quickbooks") ?? true);
-  const [syncStripe, setSyncStripe] = useState(tenant?.connectedConnectors.includes("stripe") ?? true);
+  const [syncGoogleSheets, setSyncGoogleSheets] = useState(true);
+  const [syncJazzCash, setSyncJazzCash] = useState(tenant?.connectedConnectors.includes("jazzcash") ?? true);
   const [notifySlack, setNotifySlack] = useState(tenant?.connectedConnectors.includes("slack") ?? false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -103,11 +104,11 @@ export default function InvoiceForm({ onSuccess }: InvoiceFormProps) {
 
     try {
       const selectedConnectors: string[] = [];
-      if (syncQuickBooks) selectedConnectors.push("quickbooks");
-      if (syncStripe) selectedConnectors.push("stripe");
+      if (syncGoogleSheets) selectedConnectors.push("google_sheets");
+      if (syncJazzCash) selectedConnectors.push("jazzcash");
       if (notifySlack) selectedConnectors.push("slack");
 
-      // 1. Create invoice in tenant store
+      // 1. Create invoice in tenant store (Strictly PKR)
       const newInvoice = createInvoice(tenant.id, {
         invoiceNumber,
         clientName,
@@ -121,7 +122,7 @@ export default function InvoiceForm({ onSuccess }: InvoiceFormProps) {
         taxAmount,
         discount,
         total,
-        currency: tenant.currency || "USD",
+        currency: "PKR",
         notes,
         status: "pending",
         fastnSync: {
@@ -142,6 +143,7 @@ export default function InvoiceForm({ onSuccess }: InvoiceFormProps) {
             invoice_id: newInvoice.id,
             client_email: newInvoice.clientEmail,
             amount: newInvoice.total,
+            currency: "PKR",
             due_date: newInvoice.dueDate,
             freelancer_name: tenant.name,
             slack_channel: `#${tenant.businessName.toLowerCase().replace(/[^a-z0-9]/g, "-")}-invoices`,
@@ -167,7 +169,7 @@ export default function InvoiceForm({ onSuccess }: InvoiceFormProps) {
           dueDate: newInvoice.dueDate,
           items: newInvoice.items,
         },
-        connectors: selectedConnectors.length > 0 ? selectedConnectors : ["stripe", "quickbooks"],
+        connectors: selectedConnectors.length > 0 ? selectedConnectors : ["jazzcash", "google_sheets"],
       });
 
       setSyncSuccessModal({
@@ -184,75 +186,75 @@ export default function InvoiceForm({ onSuccess }: InvoiceFormProps) {
   };
 
   return (
-    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden">
+    <div className="bg-white border border-neutral-100 rounded-3xl shadow-card overflow-hidden">
       {/* Top Banner indicating Tenant Fastn Namespace */}
-      <div className="bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-purple-500/10 border-b border-zinc-200 dark:border-zinc-800 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-[#FAFAFA] border-b border-neutral-100 px-6 sm:px-8 py-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-[#0F766E]">
             Tenant Fastn Isolation
           </span>
-          <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-            Create Invoice for {tenant.businessName}
+          <h2 className="text-lg font-bold text-[#1A1A1A] flex items-center gap-2">
+            Invoice for {tenant.businessName}
           </h2>
         </div>
-        <div className="flex items-center gap-2 bg-white dark:bg-zinc-800/80 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 text-xs">
-          <ShieldCheck className="w-4 h-4 text-emerald-500" />
-          <span className="text-zinc-500">Fastn Namespace:</span>
-          <code className="font-mono font-semibold text-blue-600 dark:text-blue-400">
+        <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-xl border border-neutral-200/90 text-xs shadow-2xs">
+          <ShieldCheck className="w-4 h-4 text-emerald-600" />
+          <span className="text-[#737373]">Fastn Namespace:</span>
+          <code className="font-mono font-semibold text-[#0F766E]">
             {tenant.fastnNamespace}
           </code>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-8">
+      <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-8">
         {/* Header Metadata */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
-            <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1.5">
+            <label className="block text-xs font-semibold text-[#1A1A1A] mb-1.5">
               Invoice Number
             </label>
             <input
               type="text"
               value={invoiceNumber}
               onChange={(e) => setInvoiceNumber(e.target.value)}
-              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full px-3.5 py-2.5 border border-neutral-200 rounded-xl bg-[#FAFAFA] text-[#1A1A1A] text-sm font-mono focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E] focus:outline-none transition shadow-2xs"
               required
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1.5">
+            <label className="block text-xs font-semibold text-[#1A1A1A] mb-1.5">
               Issue Date
             </label>
             <input
               type="date"
               value={issueDate}
               onChange={(e) => setIssueDate(e.target.value)}
-              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full px-3.5 py-2.5 border border-neutral-200 rounded-xl bg-white text-[#1A1A1A] text-sm focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E] focus:outline-none transition shadow-2xs"
               required
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1.5">
+            <label className="block text-xs font-semibold text-[#1A1A1A] mb-1.5">
               Due Date
             </label>
             <input
               type="date"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
-              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full px-3.5 py-2.5 border border-neutral-200 rounded-xl bg-white text-[#1A1A1A] text-sm focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E] focus:outline-none transition shadow-2xs"
               required
             />
           </div>
         </div>
 
         {/* Client Details */}
-        <div className="border-t border-zinc-200 dark:border-zinc-800 pt-6">
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-4 flex items-center gap-2">
-            <Building className="w-4 h-4 text-zinc-400" /> Client Information
+        <div className="border-t border-neutral-100 pt-6">
+          <h3 className="text-sm font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
+            <Building className="w-4 h-4 text-neutral-400" /> Client Information
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+              <label className="block text-xs font-medium text-[#4A4A4A] mb-1.5">
                 Client Name / Organization *
               </label>
               <input
@@ -260,12 +262,12 @@ export default function InvoiceForm({ onSuccess }: InvoiceFormProps) {
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
                 placeholder="e.g. Acme Corporation"
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="w-full px-3.5 py-2.5 border border-neutral-200 rounded-xl bg-white text-[#1A1A1A] text-sm placeholder:text-neutral-400 focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E] focus:outline-none transition shadow-2xs"
                 required
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+              <label className="block text-xs font-medium text-[#4A4A4A] mb-1.5">
                 Client Billing Email *
               </label>
               <input
@@ -273,35 +275,35 @@ export default function InvoiceForm({ onSuccess }: InvoiceFormProps) {
                 value={clientEmail}
                 onChange={(e) => setClientEmail(e.target.value)}
                 placeholder="billing@client.com"
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="w-full px-3.5 py-2.5 border border-neutral-200 rounded-xl bg-white text-[#1A1A1A] text-sm placeholder:text-neutral-400 focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E] focus:outline-none transition shadow-2xs"
                 required
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+              <label className="block text-xs font-medium text-[#4A4A4A] mb-1.5">
                 Billing Address (Optional)
               </label>
               <input
                 type="text"
                 value={clientAddress}
                 onChange={(e) => setClientAddress(e.target.value)}
-                placeholder="Suite 500, 100 Main St, Austin, TX"
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                placeholder="Suite 500, Gulberg III, Lahore, Pakistan"
+                className="w-full px-3.5 py-2.5 border border-neutral-200 rounded-xl bg-white text-[#1A1A1A] text-sm placeholder:text-neutral-400 focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E] focus:outline-none transition shadow-2xs"
               />
             </div>
           </div>
         </div>
 
         {/* Line Items */}
-        <div className="border-t border-zinc-200 dark:border-zinc-800 pt-6">
+        <div className="border-t border-neutral-100 pt-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-zinc-400" /> Line Items
+            <h3 className="text-sm font-semibold text-[#1A1A1A] flex items-center gap-2">
+              <Receipt className="w-4 h-4 text-neutral-400" /> Line Items (PKR)
             </h3>
             <button
               type="button"
               onClick={addItem}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900 rounded-lg transition"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#0F766E] bg-[#F0FDFA] hover:bg-[#CCFBF1] border border-[#CCFBF1] rounded-xl transition"
             >
               <Plus className="w-3.5 h-3.5" /> Add Item
             </button>
@@ -311,50 +313,59 @@ export default function InvoiceForm({ onSuccess }: InvoiceFormProps) {
             {items.map((item, index) => (
               <div
                 key={item.id}
-                className="grid grid-cols-12 gap-3 items-center bg-zinc-50/70 dark:bg-zinc-800/40 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800"
+                className="grid grid-cols-12 gap-3 items-center bg-[#FAFAFA] p-3.5 rounded-2xl border border-neutral-200/70"
               >
                 <div className="col-span-12 sm:col-span-6">
+                  <label className="block text-[10px] font-semibold text-[#737373] mb-1 uppercase tracking-wide">
+                    Description
+                  </label>
                   <input
                     type="text"
-                    placeholder="Description of work or deliverables"
+                    placeholder="Description of deliverables"
                     value={item.description}
                     onChange={(e) => handleItemChange(index, "description", e.target.value)}
-                    className="w-full px-3 py-1.5 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-3 py-2 border border-neutral-200 rounded-xl bg-white text-[#1A1A1A] text-sm focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E] focus:outline-none transition"
                     required
                   />
                 </div>
                 <div className="col-span-4 sm:col-span-2">
+                  <label className="block text-[10px] font-semibold text-[#737373] mb-1 uppercase tracking-wide">
+                    Qty
+                  </label>
                   <input
                     type="number"
                     min="1"
                     placeholder="Qty"
                     value={item.quantity}
                     onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
-                    className="w-full px-3 py-1.5 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-3 py-2 border border-neutral-200 rounded-xl bg-white text-[#1A1A1A] text-sm focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E] focus:outline-none transition"
                     required
                   />
                 </div>
                 <div className="col-span-4 sm:col-span-2">
+                  <label className="block text-[10px] font-semibold text-[#737373] mb-1 uppercase tracking-wide">
+                    Amount (PKR)
+                  </label>
                   <input
                     type="number"
                     min="0"
-                    step="0.01"
-                    placeholder="Rate"
+                    step="1"
+                    placeholder="Amount (PKR)"
                     value={item.unitPrice}
                     onChange={(e) => handleItemChange(index, "unitPrice", e.target.value)}
-                    className="w-full px-3 py-1.5 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-3 py-2 border border-neutral-200 rounded-xl bg-white text-[#1A1A1A] text-sm focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E] focus:outline-none transition"
                     required
                   />
                 </div>
-                <div className="col-span-3 sm:col-span-1 font-mono text-sm text-right font-medium text-zinc-800 dark:text-zinc-200">
-                  ${item.total.toFixed(2)}
+                <div className="col-span-3 sm:col-span-1 font-mono text-sm text-right font-medium text-[#1A1A1A] pt-5">
+                  {formatPKR(item.total)}
                 </div>
-                <div className="col-span-1 text-right">
+                <div className="col-span-1 text-right pt-5">
                   <button
                     type="button"
                     onClick={() => removeItem(index)}
                     disabled={items.length <= 1}
-                    className="p-1.5 text-zinc-400 hover:text-red-500 disabled:opacity-30 disabled:hover:text-zinc-400 transition"
+                    className="p-1.5 text-neutral-400 hover:text-rose-600 disabled:opacity-30 disabled:hover:text-neutral-400 transition"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -366,49 +377,49 @@ export default function InvoiceForm({ onSuccess }: InvoiceFormProps) {
           {/* Totals Summary */}
           <div className="mt-6 flex flex-col md:flex-row justify-between gap-6">
             <div className="md:w-1/2">
-              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+              <label className="block text-xs font-medium text-[#4A4A4A] mb-1.5">
                 Payment Terms / Notes
               </label>
               <textarea
                 rows={3}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="w-full px-3.5 py-2.5 border border-neutral-200 rounded-xl bg-white text-[#1A1A1A] text-sm focus:ring-2 focus:ring-[#0F766E]/20 focus:border-[#0F766E] focus:outline-none transition shadow-2xs"
               />
             </div>
 
-            <div className="md:w-1/3 bg-zinc-50 dark:bg-zinc-800/60 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-2 text-sm">
-              <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
+            <div className="md:w-1/3 bg-[#FAFAFA] p-5 rounded-2xl border border-neutral-200/80 space-y-2.5 text-sm">
+              <div className="flex justify-between text-[#4A4A4A]">
                 <span>Subtotal:</span>
-                <span className="font-mono font-medium text-zinc-900 dark:text-zinc-100">
-                  ${subtotal.toFixed(2)}
+                <span className="font-mono font-medium text-[#1A1A1A]">
+                  {formatPKR(subtotal)}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-zinc-600 dark:text-zinc-400">
-                <span className="flex items-center gap-1">Tax (%):</span>
+              <div className="flex items-center justify-between text-[#4A4A4A]">
+                <span>Tax (%):</span>
                 <input
                   type="number"
                   min="0"
                   max="100"
                   value={taxRate}
                   onChange={(e) => setTaxRate(Number(e.target.value))}
-                  className="w-16 px-2 py-0.5 text-right border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 font-mono text-xs"
+                  className="w-16 px-2 py-1 text-right border border-neutral-200 rounded-lg bg-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20"
                 />
               </div>
-              <div className="flex items-center justify-between text-zinc-600 dark:text-zinc-400">
-                <span>Discount ($):</span>
+              <div className="flex items-center justify-between text-[#4A4A4A]">
+                <span>Discount (PKR):</span>
                 <input
                   type="number"
                   min="0"
                   value={discount}
                   onChange={(e) => setDiscount(Number(e.target.value))}
-                  className="w-20 px-2 py-0.5 text-right border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 font-mono text-xs"
+                  className="w-24 px-2 py-1 text-right border border-neutral-200 rounded-lg bg-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20"
                 />
               </div>
-              <div className="border-t border-zinc-200 dark:border-zinc-700 pt-2 flex justify-between text-base font-bold text-zinc-900 dark:text-zinc-100">
+              <div className="border-t border-neutral-200 pt-3 flex justify-between text-base font-bold text-[#1A1A1A]">
                 <span>Total Due:</span>
-                <span className="font-mono text-blue-600 dark:text-blue-400">
-                  ${total.toFixed(2)} {tenant.currency}
+                <span className="font-mono text-[#0F766E] text-xl">
+                  {formatPKR(total)}
                 </span>
               </div>
             </div>
@@ -416,66 +427,66 @@ export default function InvoiceForm({ onSuccess }: InvoiceFormProps) {
         </div>
 
         {/* Fastn Integration Actions Box */}
-        <div className="border border-blue-200 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-950/20 p-5 rounded-xl space-y-4">
+        <div className="border border-[#CCFBF1] bg-[#F0FDFA] p-5 rounded-2xl space-y-3.5">
           <div className="flex items-center gap-2">
-            <Zap className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            <h4 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">
+            <Zap className="w-5 h-5 text-[#0F766E]" />
+            <h4 className="font-semibold text-sm text-[#1A1A1A]">
               Fastn Multi-Tenant Integration Automations
             </h4>
           </div>
-          <p className="text-xs text-zinc-600 dark:text-zinc-400">
-            Select the platforms to synchronize immediately via Fastn for tenant namespace{" "}
-            <code className="text-blue-600 dark:text-blue-400 font-mono font-semibold">
+          <p className="text-xs text-[#4A4A4A]">
+            Select platforms to synchronize immediately via Fastn for tenant namespace{" "}
+            <code className="text-[#0F766E] font-mono font-semibold">
               {tenant.fastnNamespace}
             </code>
             :
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <label className="flex items-center gap-2.5 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 cursor-pointer hover:border-blue-400 transition">
+            <label className="flex items-center gap-2.5 p-3 rounded-xl border border-neutral-200 bg-white cursor-pointer hover:border-[#0F766E] transition shadow-2xs">
               <input
                 type="checkbox"
-                checked={syncQuickBooks}
-                onChange={(e) => setSyncQuickBooks(e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                checked={syncGoogleSheets}
+                onChange={(e) => setSyncGoogleSheets(e.target.checked)}
+                className="w-4 h-4 text-[#0F766E] accent-[#0F766E] rounded"
               />
-              <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200">
-                📊 Sync to QuickBooks
+              <span className="text-xs font-medium text-[#1A1A1A]">
+                📊 Google Sheets Ledger
               </span>
             </label>
 
-            <label className="flex items-center gap-2.5 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 cursor-pointer hover:border-blue-400 transition">
+            <label className="flex items-center gap-2.5 p-3 rounded-xl border border-neutral-200 bg-white cursor-pointer hover:border-[#0F766E] transition shadow-2xs">
               <input
                 type="checkbox"
-                checked={syncStripe}
-                onChange={(e) => setSyncStripe(e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                checked={syncJazzCash}
+                onChange={(e) => setSyncJazzCash(e.target.checked)}
+                className="w-4 h-4 text-[#0F766E] accent-[#0F766E] rounded"
               />
-              <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200">
-                💳 Generate Stripe Checkout
+              <span className="text-xs font-medium text-[#1A1A1A]">
+                📱 JazzCash Checkout
               </span>
             </label>
 
-            <label className="flex items-center gap-2.5 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 cursor-pointer hover:border-blue-400 transition">
+            <label className="flex items-center gap-2.5 p-3 rounded-xl border border-neutral-200 bg-white cursor-pointer hover:border-[#0F766E] transition shadow-2xs">
               <input
                 type="checkbox"
                 checked={notifySlack}
                 onChange={(e) => setNotifySlack(e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                className="w-4 h-4 text-[#0F766E] accent-[#0F766E] rounded"
               />
-              <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200">
-                💬 Post to Slack
+              <span className="text-xs font-medium text-[#1A1A1A]">
+                💬 Slack Channel Alert
               </span>
             </label>
           </div>
         </div>
 
         {/* Submit Button */}
-        <div className="flex items-center justify-end gap-4">
+        <div className="flex items-center justify-end gap-4 pt-2">
           <button
             type="submit"
             disabled={isSubmitting}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm transition shadow-sm hover:shadow disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#0F766E] hover:bg-[#0D5C56] text-white font-semibold text-sm transition shadow-soft hover:shadow disabled:opacity-50"
           >
             {isSubmitting ? (
               <>Processing Fastn Sync...</>
@@ -490,58 +501,58 @@ export default function InvoiceForm({ onSuccess }: InvoiceFormProps) {
 
       {/* Sync Success Modal */}
       {syncSuccessModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-lg w-full p-6 space-y-6 shadow-2xl animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 bg-neutral-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-neutral-100 rounded-3xl max-w-lg w-full p-6 sm:p-7 space-y-6 shadow-card animate-in fade-in zoom-in-95">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-950/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+              <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-200/70">
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-bold text-lg text-zinc-900 dark:text-zinc-100">
+                <h3 className="font-bold text-lg text-[#1A1A1A]">
                   Invoice Created & Fastn Synced!
                 </h3>
-                <p className="text-xs text-zinc-500">
-                  Namespace: <span className="font-mono text-blue-600">{syncSuccessModal.syncResponse.tenantNamespace}</span>
+                <p className="text-xs text-[#737373]">
+                  Namespace: <span className="font-mono text-[#0F766E]">{syncSuccessModal.syncResponse.tenantNamespace}</span>
                 </p>
               </div>
             </div>
 
             <div className="space-y-3">
-              <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-[#737373]">
                 Fastn Lifecycle Workflow: invoice-lifecycle
               </div>
 
               {syncSuccessModal.lifecycleResult?.steps ? (
                 <div className="space-y-2 font-mono text-xs">
-                  <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 font-sans font-bold text-zinc-900 dark:text-zinc-100">
+                  <div className="p-2.5 rounded-xl bg-[#FAFAFA] border border-neutral-200 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 font-sans font-semibold text-[#1A1A1A]">
                       ✉️ Gmail Delivery
                     </span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/70">
                       RESOLVED ({syncSuccessModal.lifecycleResult.tenant_id})
                     </span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 font-sans font-bold text-zinc-900 dark:text-zinc-100">
+                  <div className="p-2.5 rounded-xl bg-[#FAFAFA] border border-neutral-200 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 font-sans font-semibold text-[#1A1A1A]">
                       📅 Google Calendar
                     </span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/70">
                       3-DAY & DAY-OF REMINDERS
                     </span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 font-sans font-bold text-zinc-900 dark:text-zinc-100">
+                  <div className="p-2.5 rounded-xl bg-[#FAFAFA] border border-neutral-200 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 font-sans font-semibold text-[#1A1A1A]">
                       📊 Google Sheets Ledger
                     </span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/70">
                       ROW APPENDED (STATUS: PENDING)
                     </span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 font-sans font-bold text-zinc-900 dark:text-zinc-100">
+                  <div className="p-2.5 rounded-xl bg-[#FAFAFA] border border-neutral-200 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 font-sans font-semibold text-[#1A1A1A]">
                       💬 Slack Alert
                     </span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/70">
                       DISPATCHED TO TENANT CHANNEL
                     </span>
                   </div>
@@ -550,17 +561,17 @@ export default function InvoiceForm({ onSuccess }: InvoiceFormProps) {
                 syncSuccessModal.syncResponse.results.map((res: any, idx: number) => (
                   <div
                     key={idx}
-                    className="bg-zinc-50 dark:bg-zinc-800/60 p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 text-xs space-y-1"
+                    className="bg-[#FAFAFA] p-3 rounded-xl border border-neutral-200 text-xs space-y-1"
                   >
                     <div className="flex justify-between items-center">
-                      <span className="font-bold text-zinc-900 dark:text-zinc-100">
+                      <span className="font-semibold text-[#1A1A1A]">
                         {res.actionTaken}
                       </span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
                         {res.status}
                       </span>
                     </div>
-                    <p className="text-zinc-600 dark:text-zinc-400">{res.message}</p>
+                    <p className="text-[#4A4A4A]">{res.message}</p>
                   </div>
                 ))
               )}
@@ -574,7 +585,7 @@ export default function InvoiceForm({ onSuccess }: InvoiceFormProps) {
                   if (onSuccess) onSuccess(syncSuccessModal.invoice.id);
                   else window.location.href = "/dashboard";
                 }}
-                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs transition"
+                className="px-5 py-2.5 rounded-xl bg-[#0F766E] hover:bg-[#0D5C56] text-white font-semibold text-xs shadow-soft transition"
               >
                 Go to Dashboard
               </button>

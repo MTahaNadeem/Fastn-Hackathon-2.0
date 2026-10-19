@@ -1,5 +1,6 @@
 {
-  "name": "JazzCash",
+  "id": "7d9b8df5-cfac-4679-ba7c-5a4c78c2051a",
+  "name": "JazzCash Pakistan",
   "slug": "jazzcash",
   "version": "1.1.0",
   "description": "Fastn Custom Connector for JazzCash payment gateway (sandbox and live). Enables mobile account checkouts, debit/credit cards, OTC vouchers, and real-time status inquiry.",
@@ -8,6 +9,7 @@
   "protocol": "REST",
   "author": "InvoiceFlow",
   "scope": "MULTI_TENANT",
+  "authMethodId": "7fdceb93-cd0e-4f10-b31d-b642719bb122",
   "authentication": {
     "type": "apiKey",
     "description": "Merchant credentials issued by JazzCash Merchant Portal",
