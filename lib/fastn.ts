@@ -383,24 +383,65 @@ export function setTenantConnectionStatus(
 }
 
 /**
- * Generate a short-lived Fastn Embed Token for customer/tenant scoped connection flows.
- * Per Fastn Embed Docs: POST /api/v1/embed/token with endOrgId: tenantId
+ * Generate a short-lived Fastn Embed Token and real Connect URL for customer/tenant scoped connection flows.
  */
 export async function generateFastnEmbedToken(
   tenantId: string,
   connectorId?: string,
   userEmail?: string
 ) {
+  // 1. First, attempt to mint live Connect URL or Setup Link directly from Fastn Platform
+  try {
+    const { createLiveConnectLink, createLiveSetupLink } = await import("./fastn-live");
+    if (connectorId) {
+      const liveLink = await createLiveConnectLink(connectorId);
+      if (liveLink && liveLink.connectUrl) {
+        const tokenMatch = liveLink.connectUrl.match(/#t=([^&]+)/);
+        const token = tokenMatch ? tokenMatch[1] : `emb_live_${Date.now()}`;
+        return {
+          success: true,
+          token,
+          endOrgId: tenantId,
+          role: "end_user",
+          expiresAt: liveLink.expiresAt,
+          connectUrl: liveLink.connectUrl,
+          embedUrl: liveLink.connectUrl,
+          isSimulation: false,
+          isLiveFastn: true,
+        };
+      }
+    } else {
+      const liveSetup = await createLiveSetupLink(tenantId);
+      if (liveSetup && liveSetup.setupUrl) {
+        const tokenMatch = liveSetup.setupUrl.match(/#t=([^&]+)/);
+        const token = tokenMatch ? tokenMatch[1] : `emb_live_${Date.now()}`;
+        return {
+          success: true,
+          token,
+          endOrgId: liveSetup.endOrgId || tenantId,
+          role: "end_user",
+          expiresAt: liveSetup.expiresAt,
+          setupUrl: liveSetup.setupUrl,
+          connectUrl: liveSetup.setupUrl,
+          embedUrl: liveSetup.setupUrl,
+          isSimulation: false,
+          isLiveFastn: true,
+        };
+      }
+    }
+  } catch (liveErr) {
+    console.warn("Could not generate Fastn live connect link via MCP, trying env API:", liveErr);
+  }
+
   const apiKey = process.env.FASTN_API_KEY || "";
-  const workspaceId = process.env.FASTN_WORKSPACE_ID || "";
   const fastnHost =
     process.env.FASTN_HOST ||
     process.env.FASTN_BASE_URL?.replace(/\/api\/?$/, "") ||
-    "https://live.fastn.ai";
+    "https://api.fastn.dev";
   const idvSecret = process.env.FASTN_IDV_SECRET || apiKey;
   const userId = userEmail || `${tenantId}@invoicing.app`;
 
-  // If live credentials exist, mint token from Fastn Embed API with Identity Verification (IDV)
+  // 2. If live credentials exist in env, mint token from Fastn Embed API
   if (isFastnConfigured()) {
     try {
       const crypto = await import("crypto");
@@ -428,7 +469,7 @@ export async function generateFastnEmbedToken(
 
       if (resp.ok) {
         const data = await resp.json();
-        const token = data.token;
+        const token = data.data?.token || data.token;
         const embedUrl = `${fastnHost}/api/v1/embed/iframe?token=${token}${
           connectorId ? `&connector=${encodeURIComponent(connectorId)}` : ""
         }`;
@@ -438,18 +479,18 @@ export async function generateFastnEmbedToken(
           endOrgId: tenantId,
           role: "end_user",
           expiresIn: data.expiresIn || 28800,
+          connectUrl: embedUrl,
           embedUrl,
           isSimulation: false,
+          isLiveFastn: true,
         };
-      } else {
-        console.warn(`Live Fastn embed token API returned ${resp.status}:`, await resp.text().catch(() => ""));
       }
     } catch (err) {
       console.warn("Live Fastn embed token generation error:", err);
     }
   }
 
-  // Fallback to local sandbox token and self-hosted embed widget iframe scoped to tenant
+  // 3. Fallback
   const mockToken = `emb_dev_${tenantId}_${connectorId || "all"}_${Date.now().toString(36)}`;
   const embedUrl = `/api/fastn/embed/widget?token=${mockToken}&tenant_id=${encodeURIComponent(
     tenantId
@@ -461,8 +502,10 @@ export async function generateFastnEmbedToken(
     endOrgId: tenantId,
     role: "end_user",
     expiresIn: 28800,
+    connectUrl: embedUrl,
     embedUrl,
     isSimulation: true,
+    isLiveFastn: false,
   };
 }
 

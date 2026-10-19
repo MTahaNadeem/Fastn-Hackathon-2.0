@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@fastn-ai/core": "^1.0.8",
+    "@fastn-ai/embed": "^0.4.3",
     "lucide-react": "^1.59.0",
     "next": "16.4.2",
     "react": "19.3.0",

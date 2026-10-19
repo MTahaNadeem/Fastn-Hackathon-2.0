@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTenantConnections, setTenantConnectionStatus } from "@/lib/fastn";
+import { getAllLiveConnections, getLiveConnectorStatus } from "@/lib/fastn-live";
+import { CONNECTOR_CATALOG, FastnConnectionRecord, getTenantConnections, setTenantConnectionStatus } from "@/lib/fastn";
 
 /**
  * GET /api/fastn/connections?tenant_id=<id>
- * Fetches the scoped connection status for a specific freelancer tenant.
+ * Fetches the scoped connection status for a specific freelancer tenant,
+ * validated directly against Fastn's live workspace connection state.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -15,19 +17,47 @@ export async function GET(request: NextRequest) {
     "tenant-sarah-chen";
 
   try {
+    // 1. Fetch live workspace connections from Fastn
+    const liveFastnConnections = await getAllLiveConnections();
+    
+    // 2. Fetch tenant-scoped connections
+    const tenantConnections = getTenantConnections(tenant_id);
+
+    // 3. Reconcile with live Fastn state
+    const mergedConnections: FastnConnectionRecord[] = tenantConnections.map((tConn) => {
+      const live = liveFastnConnections.find((l) => l.connectorId === tConn.id);
+      const isLiveConnected = live ? live.connected : false;
+      const effectiveConnected = tConn.connected || isLiveConnected;
+
+      return {
+        ...tConn,
+        connected: effectiveConnected,
+        status: effectiveConnected ? "connected" : "not_connected",
+        connectionId: live?.connectionId || tConn.connectionId,
+        lastSyncedAt: live?.lastSyncedAt || tConn.lastSyncedAt,
+      };
+    });
+
+    return NextResponse.json({
+      success: true,
+      tenant_id,
+      connections: mergedConnections,
+      liveWorkspaceVerified: true,
+      totalConnected: mergedConnections.filter((c) => c.connected).length,
+      syncedAt: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error("Error fetching live Fastn connections:", error);
+    // Fallback to tenant local store if MCP is temporarily unreachable
     const connections = getTenantConnections(tenant_id);
     return NextResponse.json({
       success: true,
       tenant_id,
       connections,
+      liveWorkspaceVerified: false,
       totalConnected: connections.filter((c) => c.connected).length,
       syncedAt: new Date().toISOString(),
     });
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, error: error.message || "Failed to retrieve connections" },
-      { status: 500 }
-    );
   }
 }
 
