@@ -22,6 +22,7 @@ import {
   ArrowRight,
   AlertCircle,
   Check,
+  Globe,
 } from "lucide-react";
 
 // The 5 designated integrations required for InvoiceFlow
@@ -57,7 +58,8 @@ const OAUTH_METADATA: Record<
     clientId: string;
     scopes: string[];
     authType: "OAUTH_2" | "API_KEY";
-    authUrl: string;
+    fastnConnectorId: string;
+    buildDirectUrl: (tenantId: string) => string;
   }
 > = {
   gmail: {
@@ -69,7 +71,19 @@ const OAUTH_METADATA: Record<
       "https://www.googleapis.com/auth/userinfo.email (Identify tenant account)",
     ],
     authType: "OAUTH_2",
-    authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+    fastnConnectorId: "ec3c1b4a-e281-4c5e-9a6b-90eb4a59882f",
+    buildDirectUrl: (tenantId: string) => {
+      const params = new URLSearchParams({
+        client_id: "18408645391-cqtbc8sm6p532bptfv392begngkb8mfd.apps.googleusercontent.com",
+        redirect_uri: "https://api.fastn.dev/api/v1/oauth/callback",
+        response_type: "code",
+        scope: "https://mail.google.com/ https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email",
+        access_type: "offline",
+        prompt: "consent",
+        state: JSON.stringify({ tenant_id: tenantId, connector_id: "ec3c1b4a-e281-4c5e-9a6b-90eb4a59882f" }),
+      });
+      return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    },
   },
   google_calendar: {
     provider: "Google OAuth 2.0",
@@ -79,7 +93,19 @@ const OAUTH_METADATA: Record<
       "https://www.googleapis.com/auth/calendar.events (Schedule reminders)",
     ],
     authType: "OAUTH_2",
-    authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+    fastnConnectorId: "867f1fd1-deaa-43e3-aa9f-37780f257017",
+    buildDirectUrl: (tenantId: string) => {
+      const params = new URLSearchParams({
+        client_id: "18408645391-cqtbc8sm6p532bptfv392begngkb8mfd.apps.googleusercontent.com",
+        redirect_uri: "https://api.fastn.dev/api/v1/oauth/callback",
+        response_type: "code",
+        scope: "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events",
+        access_type: "offline",
+        prompt: "consent",
+        state: JSON.stringify({ tenant_id: tenantId, connector_id: "867f1fd1-deaa-43e3-aa9f-37780f257017" }),
+      });
+      return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    },
   },
   google_sheets: {
     provider: "Google OAuth 2.0",
@@ -88,7 +114,19 @@ const OAUTH_METADATA: Record<
       "https://www.googleapis.com/auth/spreadsheets (Append invoice rows and reconcile payments)",
     ],
     authType: "OAUTH_2",
-    authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+    fastnConnectorId: "38d254e2-b92e-44f4-81cd-8251fd9373d9",
+    buildDirectUrl: (tenantId: string) => {
+      const params = new URLSearchParams({
+        client_id: "18408645391-cqtbc8sm6p532bptfv392begngkb8mfd.apps.googleusercontent.com",
+        redirect_uri: "https://api.fastn.dev/api/v1/oauth/callback",
+        response_type: "code",
+        scope: "https://www.googleapis.com/auth/spreadsheets",
+        access_type: "offline",
+        prompt: "consent",
+        state: JSON.stringify({ tenant_id: tenantId, connector_id: "38d254e2-b92e-44f4-81cd-8251fd9373d9" }),
+      });
+      return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    },
   },
   slack: {
     provider: "Slack OAuth 2.0",
@@ -96,10 +134,20 @@ const OAUTH_METADATA: Record<
     scopes: [
       "chat:write (Post invoice notifications and payment confirmations)",
       "channels:read (Select invoice channel)",
-      "users:read.email (Reconcile freelancer identities)",
+      "im:write (Direct alerts)",
+      "files:write (Attach PDF invoice)",
     ],
     authType: "OAUTH_2",
-    authUrl: "https://slack.com/oauth/v2/authorize",
+    fastnConnectorId: "8de5d696-5289-4c9c-ade4-de918d019d06",
+    buildDirectUrl: (tenantId: string) => {
+      const params = new URLSearchParams({
+        client_id: "6543340007475.11397783190833",
+        redirect_uri: "https://api.fastn.dev/api/v1/oauth/callback",
+        scope: "chat:write,channels:read,im:write,files:write",
+        state: JSON.stringify({ tenant_id: tenantId, connector_id: "8de5d696-5289-4c9c-ade4-de918d019d06" }),
+      });
+      return `https://slack.com/oauth/v2/authorize?${params.toString()}`;
+    },
   },
   jazzcash: {
     provider: "JazzCash Sandbox API Gateway",
@@ -109,7 +157,8 @@ const OAUTH_METADATA: Record<
       "check_payment_status (Sandbox IPN & Inquiry)",
     ],
     authType: "API_KEY",
-    authUrl: "https://sandbox.jazzcash.com.pk/Application/API/Payment/DoTransaction",
+    fastnConnectorId: "7d9b8df5-cfac-4679-ba7c-5a4c78c2051a",
+    buildDirectUrl: () => "",
   },
 };
 
@@ -120,12 +169,11 @@ export default function ConnectionStatus() {
   const [fastnConnections, setFastnConnections] = useState<FastnConnectionRecord[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
-  const [isWorkspaceVerified, setIsWorkspaceVerified] = useState(false);
 
   // Widget Modal State
   const [activeModalConnector, setActiveModalConnector] = useState<FastnConnectorMetadata | null>(null);
   const [embedToken, setEmbedToken] = useState<string | null>(null);
-  const [connectUrl, setConnectUrl] = useState<string | null>(null);
+  const [fastnConnectUrl, setFastnConnectUrl] = useState<string | null>(null);
   const [isMintingToken, setIsMintingToken] = useState(false);
   const [isWaitingForAuth, setIsWaitingForAuth] = useState(false);
   const [modalSuccessMsg, setModalSuccessMsg] = useState<string | null>(null);
@@ -156,7 +204,6 @@ export default function ConnectionStatus() {
         if (data.connections && Array.isArray(data.connections)) {
           setFastnConnections(data.connections);
         }
-        setIsWorkspaceVerified(Boolean(data.liveWorkspaceVerified));
         setLastRefreshedAt(new Date().toLocaleTimeString());
         return data.connections;
       }
@@ -185,13 +232,13 @@ export default function ConnectionStatus() {
   }, []);
 
   /**
-   * 2. Launch Fastn Connect Flow
+   * 2. Open Connect Modal and Fetch Real Fastn Session
    */
   const handleLaunchWidget = async (connector: FastnConnectorMetadata) => {
     setActiveModalConnector(connector);
     setIsMintingToken(true);
     setEmbedToken(null);
-    setConnectUrl(null);
+    setFastnConnectUrl(null);
     setIsWaitingForAuth(false);
     setModalSuccessMsg(null);
 
@@ -212,47 +259,39 @@ export default function ConnectionStatus() {
 
       const data = await res.json();
       setEmbedToken(data.token);
-      setConnectUrl(data.connectUrl || data.embedUrl);
+      setFastnConnectUrl(data.connectUrl || data.embedUrl);
     } catch (err: any) {
       console.error("Connect session initialization failed:", err);
-      alert(`Could not initialize Fastn connect session: ${err.message}`);
-      setActiveModalConnector(null);
+      // Fallback: still show the modal so the user can use the direct Google/Slack OAuth URL
     } finally {
       setIsMintingToken(false);
     }
   };
 
   /**
-   * 3. Open Real Fastn Connect / OAuth Popup
+   * 3. Handle Direct OAuth Consent Link Click
    */
-  const handleOpenFastnOAuth = () => {
-    if (!connectUrl || !activeModalConnector) return;
-
-    // Launch popup directly to Fastn's real connect endpoint
-    const popup = window.open(
-      connectUrl,
-      `fastn_connect_${activeModalConnector.id}`,
-      "width=650,height=800,scrollbars=yes,resizable=yes"
-    );
-
+  const handleStartOAuthWait = () => {
     setIsWaitingForAuth(true);
 
-    // Poll Fastn's live connection API to detect when user completes OAuth consent
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
     }
 
+    // Poll Fastn every 2.5 seconds to see when connection is completed
     let attempts = 0;
     pollIntervalRef.current = setInterval(async () => {
       attempts++;
       const connections = await refreshStatusFromFastn(tenant.id);
-      const target = connections?.find((c: any) => c.id === activeModalConnector.id);
+      const target = connections?.find((c: any) => c.id === activeModalConnector?.id);
 
       if (target?.connected) {
         if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
         setIsWaitingForAuth(false);
-        setModalSuccessMsg(`Connected successfully to ${activeModalConnector.name} in Fastn Vault!`);
-        toggleConnector(activeModalConnector.id, true);
+        setModalSuccessMsg(`Connected successfully to ${activeModalConnector?.name} in Fastn Vault!`);
+        if (activeModalConnector) {
+          toggleConnector(activeModalConnector.id, true);
+        }
 
         setTimeout(() => {
           setActiveModalConnector(null);
@@ -260,7 +299,7 @@ export default function ConnectionStatus() {
         }, 1500);
       }
 
-      if (attempts >= 60 || (popup && popup.closed)) {
+      if (attempts >= 60) {
         if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
         setIsWaitingForAuth(false);
       }
@@ -360,6 +399,7 @@ export default function ConnectionStatus() {
 
   const totalConnected = targetConnectors.filter((c) => isConnectorConnected(c.id)).length;
   const activeOAuth = activeModalConnector ? OAUTH_METADATA[activeModalConnector.id] : null;
+  const directOAuthUrl = activeOAuth?.buildDirectUrl ? activeOAuth.buildDirectUrl(tenant.id) : "";
 
   return (
     <div className="space-y-6">
@@ -374,7 +414,7 @@ export default function ConnectionStatus() {
               Integrations for {tenant.businessName}
             </h2>
             <p className="text-xs sm:text-sm text-[#4A4A4A] max-w-2xl leading-relaxed">
-              Connect your accounting, email, calendar, and payment systems via Fastn’s embedded connect widget.
+              Connect your accounting, email, calendar, and payment systems via Fastn’s embedded connect engine.
               Every connection is sandboxed to your tenant ID (<code className="font-mono text-[#0F766E]">{tenant.id}</code>) with zero cross-tenant credential leakage.
             </p>
           </div>
@@ -528,7 +568,7 @@ export default function ConnectionStatus() {
                   <button
                     type="button"
                     onClick={() => handleLaunchWidget(connector)}
-                    className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[#0F766E] hover:bg-[#0D5C56] text-white text-xs font-semibold transition shadow-soft"
+                    className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[#0F766E] hover:bg-[#0D5C56] text-white text-xs font-semibold transition shadow-soft cursor-pointer"
                   >
                     <Key className="w-3.5 h-3.5" />
                     <span>Connect {connector.name}</span>
@@ -540,7 +580,7 @@ export default function ConnectionStatus() {
         })}
       </div>
 
-      {/* Fastn Real Embedded Connect Modal */}
+      {/* Real Fastn / OAuth Connect Modal */}
       {activeModalConnector && (
         <div className="fixed inset-0 z-50 bg-neutral-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="relative max-w-xl w-full bg-white border border-neutral-100 rounded-3xl overflow-hidden shadow-card flex flex-col animate-in zoom-in-95 duration-200">
@@ -558,7 +598,7 @@ export default function ConnectionStatus() {
                 </div>
                 <div>
                   <h3 className="font-bold text-base text-[#1A1A1A]">
-                    Authorize {activeModalConnector.name}
+                    Connect {activeModalConnector.name}
                   </h3>
                   <div className="flex items-center gap-2 text-xs text-[#737373]">
                     <ShieldCheck className="w-3.5 h-3.5 text-[#0F766E]" />
@@ -584,9 +624,9 @@ export default function ConnectionStatus() {
             {/* Modal Content */}
             <div className="p-6 space-y-5 bg-white">
               {isMintingToken ? (
-                <div className="h-[280px] flex flex-col items-center justify-center gap-3 text-[#737373]">
+                <div className="h-[260px] flex flex-col items-center justify-center gap-3 text-[#737373]">
                   <RefreshCw className="w-8 h-8 animate-spin text-[#0F766E]" />
-                  <p className="text-sm font-medium text-[#1A1A1A]">Generating Fastn Connect Session...</p>
+                  <p className="text-sm font-medium text-[#1A1A1A]">Preparing Fastn Connection Session...</p>
                   <p className="text-xs text-[#737373]">Target: {tenant.fastnNamespace}</p>
                 </div>
               ) : activeModalConnector.id === "jazzcash" ? (
@@ -649,7 +689,7 @@ export default function ConnectionStatus() {
                   <button
                     type="submit"
                     disabled={isSavingJazz}
-                    className="w-full mt-2 inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#0F766E] hover:bg-[#0D5C56] text-white text-sm font-semibold transition shadow-soft disabled:opacity-50"
+                    className="w-full mt-2 inline-flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-[#0F766E] hover:bg-[#0D5C56] text-white text-sm font-semibold transition shadow-soft disabled:opacity-50 cursor-pointer"
                   >
                     {isSavingJazz ? (
                       <RefreshCw className="w-4 h-4 animate-spin" />
@@ -668,11 +708,11 @@ export default function ConnectionStatus() {
                         {activeOAuth?.provider}
                       </span>
                       <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-white border border-[#CCFBF1] text-[#0F766E]">
-                        Fastn Managed App
+                        Fastn OAuth App
                       </span>
                     </div>
                     <p className="text-xs text-[#4A4A4A] leading-relaxed">
-                      Fastn initiates a scoped OAuth 2.0 authorization with {activeOAuth?.provider}. You will be redirected to the official consent screen to authorize InvoiceFlow.
+                      Clicking the button below directly opens <b>{activeOAuth?.provider}’s official consent screen</b>. You will see Google’s / Slack’s real permission prompt to authorize Fastn for InvoiceFlow.
                     </p>
                   </div>
 
@@ -691,35 +731,52 @@ export default function ConnectionStatus() {
                   </div>
 
                   {isWaitingForAuth ? (
-                    <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-center space-y-2">
+                    <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-center space-y-3">
                       <div className="flex items-center justify-center gap-2 text-amber-800 font-semibold text-sm">
                         <RefreshCw className="w-4 h-4 animate-spin text-amber-600" />
-                        Waiting for OAuth consent in popup window...
+                        Awaiting OAuth authorization in your opened tab...
                       </div>
                       <p className="text-xs text-amber-700">
-                        Complete authorization on {activeOAuth?.provider}. Fastn will automatically detect approval and update this card.
+                        Complete authorization on {activeOAuth?.provider}. Fastn will automatically record the credentials in your tenant vault.
                       </p>
                       <button
                         type="button"
                         onClick={() => refreshStatusFromFastn(tenant.id)}
-                        className="text-xs font-semibold text-[#0F766E] hover:underline pt-1 inline-block"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-amber-200 text-xs font-semibold text-[#0F766E] hover:bg-neutral-50 shadow-2xs"
                       >
-                        Check Fastn Status Now
+                        <RefreshCw className="w-3 h-3 text-[#0F766E]" />
+                        Check Fastn Vault Status Now
                       </button>
                     </div>
                   ) : (
                     <div className="pt-2 space-y-2.5">
-                      <button
-                        type="button"
-                        onClick={handleOpenFastnOAuth}
-                        className="w-full inline-flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-[#0F766E] hover:bg-[#0D5C56] text-white text-sm font-semibold transition shadow-soft cursor-pointer"
+                      {/* Direct Unblockable Link to Provider Consent Screen */}
+                      <a
+                        href={directOAuthUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={handleStartOAuthWait}
+                        className="w-full inline-flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-[#0F766E] hover:bg-[#0D5C56] text-white text-sm font-semibold transition shadow-soft cursor-pointer text-center"
                       >
                         <ExternalLink className="w-4 h-4" />
-                        <span>Authorize with {activeOAuth?.provider}</span>
-                      </button>
+                        <span>Launch {activeOAuth?.provider} Consent Screen</span>
+                      </a>
+
+                      {fastnConnectUrl && (
+                        <a
+                          href={fastnConnectUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={handleStartOAuthWait}
+                          className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white border border-neutral-200 text-[#4A4A4A] hover:text-[#1A1A1A] hover:bg-neutral-50 text-xs font-medium transition text-center"
+                        >
+                          <Globe className="w-3.5 h-3.5 text-neutral-400" />
+                          <span>Or open via Fastn Connect Dashboard</span>
+                        </a>
+                      )}
 
                       <p className="text-center text-[11px] text-[#737373]">
-                        Opens Fastn OAuth Consent in a secure popup window.
+                        Opens directly in a new browser window. Never blocked by popup blockers.
                       </p>
                     </div>
                   )}
@@ -736,8 +793,10 @@ export default function ConnectionStatus() {
 
             {/* Modal Footer */}
             <div className="p-4 border-t border-neutral-100 bg-[#FAFAFA] flex items-center justify-between text-[11px] text-[#737373]">
-              <span>Fastn Security: End-to-End Vault Encryption</span>
-              <span className="font-mono">{tenant.fastnNamespace}</span>
+              <span className="font-mono text-xs text-[#737373]">
+                Client ID: {activeOAuth?.clientId ? `${activeOAuth.clientId.slice(0, 15)}...` : "Managed"}
+              </span>
+              <span className="font-mono text-xs text-[#0F766E] font-semibold">{tenant.fastnNamespace}</span>
             </div>
           </div>
         </div>
